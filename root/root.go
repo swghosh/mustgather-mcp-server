@@ -157,8 +157,6 @@ func initConfig() {
 						fmt.Println(err)
 						os.Exit(1)
 					}
-				} else if use.IsRemoteFile(vars.MustGatherRootPath) {
-					vfs.OS = vfs.NewHttpFS(vars.MustGatherRootPath)
 				}
 				// default still uses vfs.OS as LocalFS
 
