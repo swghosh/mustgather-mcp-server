@@ -18,9 +18,7 @@ package use
 import (
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 
@@ -115,7 +113,7 @@ func UseContext(fs vfs.Filesystem, path string, omcConfigFile string, idFlag str
 }
 
 func findMustGatherIn(fs vfs.Filesystem, path string) (string, error) {
-	if IsGCSPath(path) || IsRemoteFile(path) {
+	if IsGCSPath(path) {
 		return path, nil
 	}
 
@@ -191,20 +189,9 @@ func MustGatherInfo() {
 			fmt.Printf("ClusterVersion : %s\n", clusterversion)
 		}
 	}
-	mustGatherParentPath := ""
-	if IsRemoteFile(vars.MustGatherRootPath) {
-		u, err := url.Parse(vars.MustGatherRootPath)
-		if err == nil {
-			u.Path = path.Dir(u.Path)
-			mustGatherParentPath = u.String()
-		} else {
-			mustGatherParentPath = vars.MustGatherRootPath
-		}
-	} else {
-		mustGatherParentPath = filepath.Dir(vars.MustGatherRootPath)
-	}
-
-	clientVersion := extractClientVersion(vfs.OS.Join(mustGatherParentPath, "must-gather.logs"))
+	mustGatherSplitPath := strings.Split(vars.MustGatherRootPath, "/")
+	mustGatherParentPath := strings.Join(mustGatherSplitPath[0:(len(mustGatherSplitPath)-1)], "/")
+	clientVersion := extractClientVersion(mustGatherParentPath + "/must-gather.logs")
 	if clientVersion != "" {
 		fmt.Printf("ClientVersion  : %s\n", clientVersion)
 	}
@@ -251,8 +238,6 @@ var UseCmd = &cobra.Command{
 					fmt.Fprintln(os.Stderr, "Error creating GCS filesystem: ", err)
 					os.Exit(1)
 				}
-			} else if IsRemoteFile(path) {
-				fs = vfs.NewHttpFS(path)
 			} else {
 				if strings.HasSuffix(path, "/") {
 					path = strings.TrimRight(path, "/")
