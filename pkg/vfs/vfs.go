@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -33,8 +34,21 @@ func NewHttpFS(baseURL string) *HttpFS {
 	}
 }
 
+func (h *HttpFS) url(filePath string) (string, error) {
+	u, err := url.Parse(h.baseURL)
+	if err != nil {
+		return "", err
+	}
+	u.Path = path.Join(u.Path, filePath)
+	return u.String(), nil
+}
+
 func (h *HttpFS) ReadFile(filePath string) ([]byte, error) {
-	resp, err := h.client.Get(h.Join(h.baseURL, filePath))
+	url, err := h.url(filePath)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := h.client.Get(url)
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +60,11 @@ func (h *HttpFS) ReadFile(filePath string) ([]byte, error) {
 }
 
 func (h *HttpFS) ReadDir(dirPath string) ([]os.DirEntry, error) {
-	resp, err := h.client.Get(h.Join(h.baseURL, dirPath))
+	url, err := h.url(dirPath)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := h.client.Get(url)
 	if err != nil {
 		return nil, err
 	}
@@ -133,11 +151,15 @@ func (i *httpFileInfo) Sys() interface{} {
 	return nil
 }
 
-func (h *HttpFS) Stat(path string) (os.FileInfo, error) {
-	resp, err := h.client.Head(h.Join(h.baseURL, path))
+func (h *HttpFS) Stat(filePath string) (os.FileInfo, error) {
+	url, err := h.url(filePath)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := h.client.Head(url)
 	if err != nil {
 		// Try a GET, maybe the server doesn't support HEAD
-		getResp, getErr := h.client.Get(h.Join(h.baseURL, path))
+		getResp, getErr := h.client.Get(url)
 		if getErr != nil {
 			return nil, err // return original HEAD error
 		}
@@ -147,7 +169,7 @@ func (h *HttpFS) Stat(path string) (os.FileInfo, error) {
 		}
 		contentType := getResp.Header.Get("Content-Type")
 		isDir := strings.Contains(contentType, "text/html")
-		return &httpFileInfo{name: filepath.Base(path), size: getResp.ContentLength, isDir: isDir}, nil
+		return &httpFileInfo{name: filepath.Base(filePath), size: getResp.ContentLength, isDir: isDir}, nil
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
@@ -157,7 +179,7 @@ func (h *HttpFS) Stat(path string) (os.FileInfo, error) {
 	contentType := resp.Header.Get("Content-Type")
 	isDir := strings.Contains(contentType, "text/html")
 
-	return &httpFileInfo{name: filepath.Base(path), size: resp.ContentLength, isDir: isDir}, nil
+	return &httpFileInfo{name: filepath.Base(filePath), size: resp.ContentLength, isDir: isDir}, nil
 }
 
 func (h *HttpFS) Join(elem ...string) string {

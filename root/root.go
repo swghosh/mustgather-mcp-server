@@ -146,6 +146,7 @@ func initConfig() {
 		contexts := omcConfigJson.Contexts
 		for _, context := range contexts {
 			if context.Current == "*" {
+				fmt.Println(context.Path)
 				vars.MustGatherRootPath = context.Path
 				if vars.Namespace == "" {
 					vars.Namespace = context.Project
@@ -153,30 +154,30 @@ func initConfig() {
 				break
 			}
 		}
-		if vars.MustGatherRootPath != "" {
-			exist, _ := helpers.Exists(vars.MustGatherRootPath)
-			if !exist {
-				files, err := os.ReadDir(vars.MustGatherRootPath)
-				if err != nil {
-					fmt.Println(err)
-					cmd.DeleteContext(vars.MustGatherRootPath, viper.ConfigFileUsed(), "")
-					fmt.Println("Cleaning", viper.ConfigFileUsed())
-				} else {
-					baseDir := ""
-					for _, f := range files {
-						if f.IsDir() {
-							baseDir = f.Name()
-							vars.MustGatherRootPath = vars.MustGatherRootPath + "/" + baseDir
-							break
-						}
-					}
-					if baseDir == "" && !helpers.StringInSlice("use", os.Args) {
-						fmt.Fprintln(os.Stderr, "wrong must-gather file composition for", vars.MustGatherRootPath)
-						os.Exit(1)
-					}
-				}
-			}
-		}
+		// if vars.MustGatherRootPath != "" {
+		// 	exist, _ := helpers.Exists(vars.MustGatherRootPath)
+		// 	if !exist {
+		// 		files, err := os.ReadDir(vars.MustGatherRootPath)
+		// 		if err != nil {
+		// 			fmt.Println(err)
+		// 			cmd.DeleteContext(vars.MustGatherRootPath, viper.ConfigFileUsed(), "")
+		// 			fmt.Println("Cleaning", viper.ConfigFileUsed())
+		// 		} else {
+		// 			baseDir := ""
+		// 			for _, f := range files {
+		// 				if f.IsDir() {
+		// 					baseDir = f.Name()
+		// 					vars.MustGatherRootPath = vars.MustGatherRootPath + "/" + baseDir
+		// 					break
+		// 				}
+		// 			}
+		// 			if baseDir == "" && !helpers.StringInSlice("use", os.Args) {
+		// 				fmt.Fprintln(os.Stderr, "wrong must-gather file composition for", vars.MustGatherRootPath)
+		// 				os.Exit(1)
+		// 			}
+		// 		}
+		// 	}
+		// }
 	}
 
 }

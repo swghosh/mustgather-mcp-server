@@ -21,7 +21,6 @@ require (
 	github.com/coreos/go-semver v0.3.1
 	github.com/coreos/ignition/v2 v2.20.0
 	github.com/dustin/go-humanize v1.0.1
-	github.com/mark3labs/mcp-go v0.32.0
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/openshift/api v0.0.0-20241211151016-1a7b90faeadf
 	github.com/openshift/machine-config-operator v0.0.1-0.20230526005055-5843b7a4b27f
@@ -81,7 +80,6 @@ require (
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/stoewer/go-strcase v1.3.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
-	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.5.17 // indirect
 	go.etcd.io/etcd/client/v3 v3.5.17 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.57.0 // indirect

@@ -459,11 +459,6 @@ github.com/magiconair/properties
 github.com/mailru/easyjson/buffer
 github.com/mailru/easyjson/jlexer
 github.com/mailru/easyjson/jwriter
-# github.com/mark3labs/mcp-go v0.32.0
-## explicit; go 1.23
-github.com/mark3labs/mcp-go/mcp
-github.com/mark3labs/mcp-go/server
-github.com/mark3labs/mcp-go/util
 # github.com/mattn/go-runewidth v0.0.16
 ## explicit; go 1.9
 github.com/mattn/go-runewidth
@@ -734,9 +729,6 @@ github.com/x448/float16
 # github.com/xlab/treeprint v1.2.0
 ## explicit; go 1.13
 github.com/xlab/treeprint
-# github.com/yosida95/uritemplate/v3 v3.0.2
-## explicit; go 1.14
-github.com/yosida95/uritemplate/v3
 # go.etcd.io/etcd/api/v3 v3.5.17
 ## explicit; go 1.22
 go.etcd.io/etcd/api/v3/authpb
