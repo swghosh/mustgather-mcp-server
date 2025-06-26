@@ -18,12 +18,15 @@ package use
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
 
 	"github.com/gmeghnag/omc/cmd/helpers"
+	"github.com/gmeghnag/omc/pkg/vfs"
 	"github.com/gmeghnag/omc/types"
 	"github.com/gmeghnag/omc/vars"
 
@@ -41,14 +44,12 @@ func useContext(path string, omcConfigFile string, idFlag string) error {
 		if err != nil {
 			return err
 		}
-		l := strings.Split(_path, "/")
-		path = strings.Join(l[0:(len(l)-1)], "/")
-		path = strings.TrimSuffix(path, "/")
-		vars.MustGatherRootPath = path
+		vars.MustGatherRootPath = _path
+		path = _path
 	}
 
 	// read json omcConfigFile
-	file, _ := os.ReadFile(omcConfigFile)
+	file, _ := vfs.OS.ReadFile(omcConfigFile)
 	omcConfigJson := types.Config{}
 	_ = json.Unmarshal([]byte(file), &omcConfigJson)
 
@@ -77,7 +78,7 @@ func useContext(path string, omcConfigFile string, idFlag string) error {
 		} else {
 			ctxId = helpers.RandString(8)
 			var namespaces []string
-			_namespaces, _ := os.ReadDir(path + "/namespaces/")
+			_namespaces, _ := vfs.OS.ReadDir(vfs.OS.Join(path, "namespaces"))
 			for _, f := range _namespaces {
 				namespaces = append(namespaces, f.Name())
 			}
@@ -115,11 +116,10 @@ func useContext(path string, omcConfigFile string, idFlag string) error {
 func findMustGatherIn(path string) (string, error) {
 	numDirs := 0
 	dirName := ""
-	retPath := strings.TrimSuffix(path, "/")
 	var retErr error
 	timeStampFound := false
 	resourcesFolderFound := false
-	files, err := os.ReadDir(path)
+	files, err := vfs.OS.ReadDir(path)
 	if err != nil {
 		return "", err
 	}
@@ -136,19 +136,19 @@ func findMustGatherIn(path string) (string, error) {
 		}
 	}
 	if numDirs == 1 && !timeStampFound && !resourcesFolderFound {
-		return findMustGatherIn(path + "/" + dirName)
+		return findMustGatherIn(vfs.OS.Join(path, dirName))
 	}
 	if resourcesFolderFound {
-		return retPath + "/", retErr
+		return path, retErr
 	}
 	if timeStampFound && (numDirs > 1 || numDirs == 0) {
-		return path, fmt.Errorf("expected one directory in path: \"%s\", found: %s", path, strconv.Itoa(numDirs))
+		return "", fmt.Errorf("expected one directory in path: \"%s\", found: %s", path, strconv.Itoa(numDirs))
 	}
 	if !timeStampFound && !resourcesFolderFound {
 		// Case: "path" is an empty directory
-		return path, fmt.Errorf("wrong must-gather file composition for %v", path)
+		return "", fmt.Errorf("wrong must-gather file composition for %v", path)
 	}
-	return findMustGatherIn(path + "/" + dirName)
+	return findMustGatherIn(vfs.OS.Join(path, dirName))
 }
 
 func MustGatherInfo() {
@@ -158,24 +158,24 @@ func MustGatherInfo() {
 	} else {
 		fmt.Printf("Project        : %s\n", vars.Namespace)
 	}
-	InfrastrctureFilePathExists, _ := helpers.Exists(vars.MustGatherRootPath + "/cluster-scoped-resources/config.openshift.io/infrastructures.yaml")
-	if InfrastrctureFilePathExists {
-		_file, _ := os.ReadFile(vars.MustGatherRootPath + "/cluster-scoped-resources/config.openshift.io/infrastructures.yaml")
+	InfrastructureFilePathExists, _ := helpers.Exists(vfs.OS.Join(vars.MustGatherRootPath, "cluster-scoped-resources/config.openshift.io/infrastructures.yaml"))
+	if InfrastructureFilePathExists {
+		_file, _ := vfs.OS.ReadFile(vfs.OS.Join(vars.MustGatherRootPath, "cluster-scoped-resources/config.openshift.io/infrastructures.yaml"))
 		infrastructureList := configv1.InfrastructureList{}
 		if err := yaml.Unmarshal([]byte(_file), &infrastructureList); err != nil {
-			fmt.Println("Error when trying to unmarshal file: " + vars.MustGatherRootPath + "/cluster-scoped-resources/config.openshift.io/infrastructures.yaml")
+			fmt.Println("Error when trying to unmarshal file: " + vfs.OS.Join(vars.MustGatherRootPath, "/cluster-scoped-resources/config.openshift.io/infrastructures.yaml"))
 			os.Exit(1)
 		} else {
 			fmt.Printf("ApiServerURL   : %s\n", infrastructureList.Items[0].Status.APIServerURL)
 			fmt.Printf("Platform       : %s\n", infrastructureList.Items[0].Status.PlatformStatus.Type)
 		}
 	}
-	clusterversionFilePathExists, _ := helpers.Exists(vars.MustGatherRootPath + "/cluster-scoped-resources/config.openshift.io/clusterversions/version.yaml")
+	clusterversionFilePathExists, _ := helpers.Exists(vfs.OS.Join(vars.MustGatherRootPath, "cluster-scoped-resources/config.openshift.io/clusterversions/version.yaml"))
 	if clusterversionFilePathExists {
-		_file, _ := os.ReadFile(vars.MustGatherRootPath + "/cluster-scoped-resources/config.openshift.io/clusterversions/version.yaml")
+		_file, _ := vfs.OS.ReadFile(vfs.OS.Join(vars.MustGatherRootPath, "cluster-scoped-resources/config.openshift.io/clusterversions/version.yaml"))
 		ClusterVersion := configv1.ClusterVersion{}
 		if err := yaml.Unmarshal([]byte(_file), &ClusterVersion); err != nil {
-			fmt.Println("Error when trying to unmarshal file: " + vars.MustGatherRootPath + "/cluster-scoped-resources/config.openshift.io/clusterversions/version.yaml")
+			fmt.Println("Error when trying to unmarshal file: " + vfs.OS.Join(vars.MustGatherRootPath, "/cluster-scoped-resources/config.openshift.io/clusterversions/version.yaml"))
 			os.Exit(1)
 		} else {
 			clusterversion := ""
@@ -191,9 +191,20 @@ func MustGatherInfo() {
 			fmt.Printf("ClusterVersion : %s\n", clusterversion)
 		}
 	}
-	mustGatherSplitPath := strings.Split(vars.MustGatherRootPath, "/")
-	mustGatherParentPath := strings.Join(mustGatherSplitPath[0:(len(mustGatherSplitPath)-1)], "/")
-	clientVersion := extractClientVersion(mustGatherParentPath + "/must-gather.logs")
+	mustGatherParentPath := ""
+	if IsRemoteFile(vars.MustGatherRootPath) {
+		u, err := url.Parse(vars.MustGatherRootPath)
+		if err == nil {
+			u.Path = path.Dir(u.Path)
+			mustGatherParentPath = u.String()
+		} else {
+			mustGatherParentPath = vars.MustGatherRootPath
+		}
+	} else {
+		mustGatherParentPath = filepath.Dir(vars.MustGatherRootPath)
+	}
+
+	clientVersion := extractClientVersion(vfs.OS.Join(mustGatherParentPath, "must-gather.logs"))
 	if clientVersion != "" {
 		fmt.Printf("ClientVersion  : %s\n", clientVersion)
 	}
@@ -220,8 +231,9 @@ var UseCmd = &cobra.Command{
 		var err error
 		idFlag, _ := cmd.Flags().GetString("id")
 		path := ""
-		fileType := ""
 		isCompressedFile := false
+		fileType := ""
+
 		if len(args) == 0 && idFlag == "" {
 			MustGatherInfo()
 			os.Exit(0)
@@ -233,11 +245,7 @@ var UseCmd = &cobra.Command{
 		if len(args) == 1 {
 			path = args[0]
 			if IsRemoteFile(path) {
-				path, err = DownloadFile(path)
-				if err != nil {
-					fmt.Fprintln(os.Stderr, err)
-					os.Exit(1)
-				}
+				vfs.OS = vfs.NewHttpFS(path)
 			} else {
 				if strings.HasSuffix(path, "/") {
 					path = strings.TrimRight(path, "/")
@@ -246,14 +254,14 @@ var UseCmd = &cobra.Command{
 					path = strings.TrimRight(path, "\\")
 				}
 				path, _ = filepath.Abs(path)
-			}
 
-			isDir, _ := helpers.IsDirectory(path)
-			if !isDir {
-				isCompressedFile, fileType, _ = IsCompressedFile(path)
-				if !isCompressedFile {
-					fmt.Fprintln(os.Stderr, "Error: "+path+" is not a directory not a compressed file.")
-					os.Exit(1)
+				isDir, _ := helpers.IsDirectory(path)
+				if !isDir {
+					isCompressedFile, fileType, _ = IsCompressedFile(path)
+					if !isCompressedFile {
+						fmt.Fprintln(os.Stderr, "Error: "+path+" is not a directory nor a compressed file.")
+						os.Exit(1)
+					}
 				}
 			}
 		}

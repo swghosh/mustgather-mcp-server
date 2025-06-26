@@ -21,6 +21,7 @@ import (
 	"slices"
 
 	"github.com/gmeghnag/omc/cmd/helpers"
+	"github.com/gmeghnag/omc/pkg/vfs"
 	"github.com/gmeghnag/omc/vars"
 
 	"strings"
@@ -39,15 +40,15 @@ var SubnetsCmd = &cobra.Command{
 	Short:   "Retrieve the ovn nodes and subnets they are providing.",
 	Run: func(cmd *cobra.Command, args []string) {
 
-		nodesFolderPath := vars.MustGatherRootPath + "/cluster-scoped-resources/core/nodes/"
-		_nodes, _ := os.ReadDir(nodesFolderPath)
+		nodesFolderPath := vfs.OS.Join(vars.MustGatherRootPath, "cluster-scoped-resources", "core", "nodes")
+		_nodes, _ := vfs.OS.ReadDir(nodesFolderPath)
 
 		var data [][]string
 		var ipv4InHeaders, ipv6InHeaders, gatewayIPInHeaders,
 			primaryIfAddrInHeaders, nodeSubnetInHeaders, nodeGatewayRouterIpInHeaders bool
 		headers := []string{"HOST/NODE", "ROLE"}
 		for _, f := range _nodes {
-			nodeYamlPath := nodesFolderPath + f.Name()
+			nodeYamlPath := vfs.OS.Join(nodesFolderPath, f.Name())
 			_file := helpers.ReadYaml(nodeYamlPath)
 			Node := corev1.Node{}
 			if err := yaml.Unmarshal([]byte(_file), &Node); err != nil {
