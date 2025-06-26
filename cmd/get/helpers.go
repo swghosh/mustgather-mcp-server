@@ -3,7 +3,6 @@ package get
 import (
 	"fmt"
 	"io/fs"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -275,8 +274,6 @@ func readDirForResources(path string) ([]fs.DirEntry, error) {
 	files, err := vfs.CurrentFS.ReadDir(path)
 
 	if err == nil {
-		log.Printf("problematic path: %s", path)
-		log.Printf("number of files: %d", len(files))
 		for _, file := range files {
 			fileName := file.Name()
 			// validate filename as per k8s validation of a resource
@@ -287,7 +284,8 @@ func readDirForResources(path string) ([]fs.DirEntry, error) {
 					// fInfo, _ := file.Info()
 					// ignore empty files
 					// if fInfo.Size() > 0 {
-					log.Printf("adding file: %s", file.Name())
+					klog.V(6).Infof("adding file irrespective of size: %s", file.Name())
+
 					resources = append(resources, file)
 					// }
 				}

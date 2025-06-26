@@ -147,7 +147,7 @@ func initConfig() {
 		contexts := omcConfigJson.Contexts
 		for _, context := range contexts {
 			if context.Current == "*" {
-				fmt.Printf("using gather from: %s\n", context.Path)
+				klog.V(5).Infof("using gather from: %s\n", context.Path)
 
 				vars.MustGatherRootPath = context.Path
 

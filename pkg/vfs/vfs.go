@@ -2,7 +2,6 @@ package vfs
 
 import (
 	"io/ioutil"
-	"log"
 	"os"
 	"path"
 	"path/filepath"
@@ -11,6 +10,7 @@ import (
 
 	"cloud.google.com/go/storage"
 	"google.golang.org/api/iterator"
+	"k8s.io/klog/v2"
 
 	"context"
 )
@@ -31,7 +31,7 @@ type GcsFS struct {
 func NewGcsFS(baseURL string) (*GcsFS, error) {
 	ctx := context.Background()
 
-	log.Printf("GcsFS: NewGcsFS with baseURL %s", baseURL)
+	klog.V(5).Infof("GcsFS: NewGcsFS with baseURL %s", baseURL)
 	client, err := storage.NewClient(ctx)
 	if err != nil {
 		return nil, err
@@ -58,7 +58,7 @@ func (g *GcsFS) getObjectPath(p string) string {
 }
 
 func (g *GcsFS) ReadFile(p string) ([]byte, error) {
-	log.Printf("GcsFS: ReadFile %s", p)
+	klog.V(5).Infof("GcsFS: ReadFile %s", p)
 	ctx := context.Background()
 	objPath := g.getObjectPath(p)
 	rc, err := g.bucket.Object(objPath).NewReader(ctx)
@@ -70,7 +70,7 @@ func (g *GcsFS) ReadFile(p string) ([]byte, error) {
 }
 
 func (g *GcsFS) ReadDir(p string) ([]os.DirEntry, error) {
-	log.Printf("GcsFS: ReadDir %s", p)
+	klog.V(5).Infof("GcsFS: ReadDir %s", p)
 
 	ctx := context.Background()
 	objPath := g.getObjectPath(p)
@@ -119,7 +119,7 @@ func (g *GcsFS) ReadDir(p string) ([]os.DirEntry, error) {
 }
 
 func (g *GcsFS) Stat(p string) (os.FileInfo, error) {
-	log.Printf("GcsFS: Stat %s", p)
+	klog.V(5).Infof("GcsFS: Stat %s", p)
 	ctx := context.Background()
 	objPath := g.getObjectPath(p)
 	attrs, err := g.bucket.Object(objPath).Attrs(ctx)
@@ -147,7 +147,7 @@ func (g *GcsFS) Stat(p string) (os.FileInfo, error) {
 }
 
 func (g *GcsFS) Join(elem ...string) string {
-	log.Printf("GcsFS: Join %v", elem)
+	klog.V(5).Infof("GcsFS: Join %v", elem)
 	if strings.HasPrefix(elem[0], "gs:/") {
 		return path.Join(elem[1:]...)
 	}
@@ -217,22 +217,22 @@ func (i *gcsFileInfo) Sys() interface{} {
 type LocalFS struct{}
 
 func (l *LocalFS) ReadFile(path string) ([]byte, error) {
-	log.Printf("LocalFS: ReadFile %s", path)
+	klog.V(5).Infof("LocalFS: ReadFile %s", path)
 	return os.ReadFile(path)
 }
 
 func (l *LocalFS) ReadDir(path string) ([]os.DirEntry, error) {
-	log.Printf("LocalFS: ReadDir %s", path)
+	klog.V(5).Infof("LocalFS: ReadDir %s", path)
 	return os.ReadDir(path)
 }
 
 func (l *LocalFS) Stat(path string) (os.FileInfo, error) {
-	log.Printf("LocalFS: Stat %s", path)
+	klog.V(5).Infof("LocalFS: Stat %s", path)
 	return os.Stat(path)
 }
 
 func (l *LocalFS) Join(elem ...string) string {
-	log.Printf("LocalFS: Join %v", elem)
+	klog.V(5).Infof("LocalFS: Join %v", elem)
 	return filepath.Join(elem...)
 }
 

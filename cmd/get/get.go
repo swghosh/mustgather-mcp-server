@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"sort"
 	"strings"
 
@@ -195,7 +194,9 @@ func getNamespacedResources(resourceNamePlural string, resourceGroup string, res
 		vars.Namespace = ""
 		vars.ShowNamespace = true
 		_namespaces, _ := ReadDirForResources(vfs.CurrentFS.Join(vars.MustGatherRootPath, "namespaces"))
-		log.Printf("number of namespaces: %d", len(_namespaces))
+
+		klog.V(6).Infof("number of namespaces: %d", len(_namespaces))
+
 		for _, f := range _namespaces {
 			namespaces = append(namespaces, f.Name())
 		}
