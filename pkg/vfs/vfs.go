@@ -191,8 +191,8 @@ func (h *HttpFS) Join(elem ...string) string {
 }
 
 type GcsFS struct {
-	bucket  *storage.BucketHandle
-	baseURL string
+	bucket       *storage.BucketHandle
+	objectPrefix string
 }
 
 func NewGcsFS(ctx context.Context, baseURL string) (*GcsFS, error) {
@@ -201,18 +201,19 @@ func NewGcsFS(ctx context.Context, baseURL string) (*GcsFS, error) {
 		return nil, err
 	}
 
-	bucketName := strings.Split(strings.TrimPrefix(baseURL, "gs://"), "/")[0]
-	bucket := client.Bucket(bucketName)
+	trimmedBaseURL := strings.TrimPrefix(baseURL, "gs://")
+	bucketName := strings.Split(trimmedBaseURL, "/")[0]
+	objectPrefix := strings.TrimPrefix(trimmedBaseURL, bucketName)
+	objectPrefix = strings.TrimPrefix(objectPrefix, "/")
 
 	return &GcsFS{
-		bucket:  bucket,
-		baseURL: baseURL,
+		bucket:       client.Bucket(bucketName),
+		objectPrefix: objectPrefix,
 	}, nil
 }
 
 func (g *GcsFS) getObjectPath(p string) string {
-	prefix := strings.TrimPrefix(g.baseURL, "gs://")
-	return path.Join(strings.TrimPrefix(prefix, g.bucket.BucketName()+"/"), p)
+	return path.Join(g.objectPrefix, p)
 }
 
 func (g *GcsFS) ReadFile(p string) ([]byte, error) {
@@ -229,7 +230,7 @@ func (g *GcsFS) ReadFile(p string) ([]byte, error) {
 func (g *GcsFS) ReadDir(p string) ([]os.DirEntry, error) {
 	ctx := context.Background()
 	objPath := g.getObjectPath(p)
-	if !strings.HasSuffix(objPath, "/") {
+	if objPath != "" && !strings.HasSuffix(objPath, "/") {
 		objPath += "/"
 	}
 
@@ -248,17 +249,20 @@ func (g *GcsFS) ReadDir(p string) ([]os.DirEntry, error) {
 			return nil, err
 		}
 
-		entryName := strings.TrimPrefix(attrs.Name, objPath)
-		if entryName == "" {
-			continue
+		var entryName string
+		var isDir bool
+
+		if attrs.Prefix != "" { // It's a directory
+			isDir = true
+			entryName = strings.TrimPrefix(attrs.Prefix, objPath)
+			entryName = strings.TrimSuffix(entryName, "/")
+		} else { // It's a file
+			isDir = false
+			entryName = strings.TrimPrefix(attrs.Name, objPath)
 		}
 
-		isDir := attrs.Name == "" && attrs.Prefix != "" // Subdirectory
-		if attrs.Name != "" {                           // Object
-			entryName = path.Base(attrs.Name)
-		} else { // Prefix
-			entryName = path.Base(strings.TrimSuffix(attrs.Prefix, "/"))
-			isDir = true
+		if entryName == "" {
+			continue
 		}
 
 		entries = append(entries, &gcsDirEntry{
