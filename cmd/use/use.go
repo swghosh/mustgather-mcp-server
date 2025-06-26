@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/gmeghnag/omc/cmd/helpers"
@@ -35,9 +36,9 @@ import (
 
 var singleNamespaceInMustGather bool
 
-func UseContext(fs vfs.Filesystem, path string, omcConfigFile string, idFlag string) error {
+func UseContext(path string, omcConfigFile string, idFlag string) error {
 	if path != "" {
-		_path, err := findMustGatherIn(fs, path)
+		_path, err := findMustGatherIn(path)
 		if err != nil {
 			return err
 		}
@@ -76,7 +77,7 @@ func UseContext(fs vfs.Filesystem, path string, omcConfigFile string, idFlag str
 			ctxId = helpers.RandString(8)
 			var namespaces []string
 
-			_namespaces, _ := fs.ReadDir(fs.Join(path, "namespaces"))
+			_namespaces, _ := vfs.CurrentFS.ReadDir(vfs.CurrentFS.Join(path, "namespaces"))
 			for _, f := range _namespaces {
 				namespaces = append(namespaces, f.Name())
 			}
@@ -112,41 +113,43 @@ func UseContext(fs vfs.Filesystem, path string, omcConfigFile string, idFlag str
 	return nil
 }
 
-func findMustGatherIn(fs vfs.Filesystem, path string) (string, error) {
-	if IsGCSPath(path) {
-		return path, nil
-	}
-
-	files, err := fs.ReadDir(path)
+func findMustGatherIn(path string) (string, error) {
+	numDirs := 0
+	dirName := ""
+	retPath := strings.TrimSuffix(path, "/")
+	var retErr error
+	timeStampFound := false
+	resourcesFolderFound := false
+	files, err := vfs.CurrentFS.ReadDir(path)
 	if err != nil {
 		return "", err
 	}
-
-	var resourcesFolderFound bool
-	var timeStampFound bool
-	var subDir string
-
 	for _, file := range files {
-		if file.Name() == "cluster-scoped-resources" {
-			resourcesFolderFound = true
+		if file.IsDir() {
+			dirName = file.Name()
+			numDirs = numDirs + 1
+			if file.Name() == "namespaces" || file.Name() == "cluster-scoped-resources" {
+				resourcesFolderFound = true
+			}
 		}
-		if file.Name() == "timestamp" {
+		if !file.IsDir() && file.Name() == "timestamp" {
 			timeStampFound = true
 		}
-		if file.IsDir() {
-			subDir = file.Name()
-		}
 	}
-
-	if resourcesFolderFound && timeStampFound {
-		return path, nil
+	if numDirs == 1 && !timeStampFound && !resourcesFolderFound {
+		return findMustGatherIn(path + "/" + dirName)
 	}
-
-	if len(files) == 1 && subDir != "" {
-		return findMustGatherIn(fs, fs.Join(path, subDir))
+	if resourcesFolderFound {
+		return retPath + "/", retErr
 	}
-
-	return path, nil
+	if timeStampFound && (numDirs > 1 || numDirs == 0) {
+		return path, fmt.Errorf("expected one directory in path: \"%s\", found: %s", path, strconv.Itoa(numDirs))
+	}
+	if !timeStampFound && !resourcesFolderFound {
+		// Case: "path" is an empty directory
+		return path, fmt.Errorf("wrong must-gather file composition for %v", path)
+	}
+	return findMustGatherIn(path + "/" + dirName)
 }
 
 func MustGatherInfo() {
@@ -232,12 +235,16 @@ var UseCmd = &cobra.Command{
 		}
 		if len(args) == 1 {
 			path = args[0]
+
+			vfs.CurrentFS = &vfs.LocalFS{}
 			if IsGCSPath(path) {
 				fs, err = vfs.NewGcsFS(path)
 				if err != nil {
 					fmt.Fprintln(os.Stderr, "Error creating GCS filesystem: ", err)
 					os.Exit(1)
 				}
+
+				vfs.CurrentFS = fs
 			} else {
 				if strings.HasSuffix(path, "/") {
 					path = strings.TrimRight(path, "/")
@@ -268,7 +275,7 @@ var UseCmd = &cobra.Command{
 			path = rootfile
 		}
 
-		err = UseContext(fs, path, viper.ConfigFileUsed(), idFlag)
+		err = UseContext(path, viper.ConfigFileUsed(), idFlag)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
