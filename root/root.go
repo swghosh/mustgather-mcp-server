@@ -152,7 +152,7 @@ func initConfig() {
 				vars.MustGatherRootPath = context.Path
 
 				if use.IsGCSPath(vars.MustGatherRootPath) {
-					vfs.OS, err = vfs.NewGcsFS(vars.MustGatherRootPath)
+					vfs.CurrentFS, err = vfs.NewGcsFS(vars.MustGatherRootPath)
 					if err != nil {
 						fmt.Println(err)
 						os.Exit(1)

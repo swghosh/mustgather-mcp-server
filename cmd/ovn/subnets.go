@@ -40,15 +40,15 @@ var SubnetsCmd = &cobra.Command{
 	Short:   "Retrieve the ovn nodes and subnets they are providing.",
 	Run: func(cmd *cobra.Command, args []string) {
 
-		nodesFolderPath := vfs.OS.Join(vars.MustGatherRootPath, "cluster-scoped-resources", "core", "nodes")
-		_nodes, _ := vfs.OS.ReadDir(nodesFolderPath)
+		nodesFolderPath := vfs.CurrentFS.Join(vars.MustGatherRootPath, "cluster-scoped-resources", "core", "nodes")
+		_nodes, _ := vfs.CurrentFS.ReadDir(nodesFolderPath)
 
 		var data [][]string
 		var ipv4InHeaders, ipv6InHeaders, gatewayIPInHeaders,
 			primaryIfAddrInHeaders, nodeSubnetInHeaders, nodeGatewayRouterIpInHeaders bool
 		headers := []string{"HOST/NODE", "ROLE"}
 		for _, f := range _nodes {
-			nodeYamlPath := vfs.OS.Join(nodesFolderPath, f.Name())
+			nodeYamlPath := vfs.CurrentFS.Join(nodesFolderPath, f.Name())
 			_file := helpers.ReadYaml(nodeYamlPath)
 			Node := corev1.Node{}
 			if err := yaml.Unmarshal([]byte(_file), &Node); err != nil {

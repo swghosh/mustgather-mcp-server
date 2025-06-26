@@ -113,8 +113,8 @@ var Extract = &cobra.Command{
 			fmt.Fprintln(os.Stderr, "error: one argument expected, found ", strconv.Itoa(len(args)))
 			os.Exit(1)
 		}
-		machineconfigYamlPath := vfs.OS.Join(vars.MustGatherRootPath, "cluster-scoped-resources", "machineconfiguration.openshift.io", "machineconfigs", args[0]+".yaml")
-		_file, err := vfs.OS.ReadFile(machineconfigYamlPath)
+		machineconfigYamlPath := vfs.CurrentFS.Join(vars.MustGatherRootPath, "cluster-scoped-resources", "machineconfiguration.openshift.io", "machineconfigs", args[0]+".yaml")
+		_file, err := vfs.CurrentFS.ReadFile(machineconfigYamlPath)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 		}

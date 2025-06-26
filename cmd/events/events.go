@@ -71,7 +71,7 @@ func GetEventList(context string, selectedNs string, allNamespaces bool) (eventL
 	nsFolder := context + "/namespaces/"
 	var namespaces []string
 	if allNamespaces {
-		files, err := vfs.OS.ReadDir(nsFolder)
+		files, err := vfs.CurrentFS.ReadDir(nsFolder)
 		if err != nil {
 			klog.ErrorS(err, "Unable to read "+nsFolder)
 			os.Exit(1)
@@ -85,13 +85,13 @@ func GetEventList(context string, selectedNs string, allNamespaces bool) (eventL
 
 	for _, namespace := range namespaces {
 		eventsPath := nsFolder + namespace + eventsLocation
-		_, err := vfs.OS.Stat(eventsPath)
+		_, err := vfs.CurrentFS.Stat(eventsPath)
 		if err != nil {
 			klog.V(5).ErrorS(err, "No events found in "+eventsPath)
 			continue
 		}
 
-		eventsFile, err := vfs.OS.ReadFile(eventsPath)
+		eventsFile, err := vfs.CurrentFS.ReadFile(eventsPath)
 		if err != nil {
 			klog.V(3).ErrorS(err, "Unable to read events.yaml")
 			continue

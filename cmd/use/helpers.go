@@ -87,7 +87,7 @@ func (counter *WriteCounter) ShowProgress() {
 }
 
 func GetHeaderFile(path string) (string, error) {
-	file, err := vfs.OS.ReadFile(path)
+	file, err := vfs.CurrentFS.ReadFile(path)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error: cannot open "+path+": "+err.Error())
 		return "", err
@@ -106,7 +106,7 @@ func GetHeaderFile(path string) (string, error) {
 }
 
 func isTarFile(path string) (bool, error) {
-	file, err := vfs.OS.ReadFile(path)
+	file, err := vfs.CurrentFS.ReadFile(path)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error: cannot open "+path+": "+err.Error())
 		return false, err
@@ -137,7 +137,7 @@ func isGzip(path string) (bool, error) {
 }
 
 func isXZ(path string) (bool, error) {
-	file, err := vfs.OS.ReadFile(path)
+	file, err := vfs.CurrentFS.ReadFile(path)
 	if err != nil {
 		return false, err
 	}
@@ -232,7 +232,7 @@ func DownloadFile(path string) (string, error) {
 }
 
 func CopyFile(path string, destinationfile string) error {
-	source, err := vfs.OS.ReadFile(path)
+	source, err := vfs.CurrentFS.ReadFile(path)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error opening file "+path+": "+err.Error())
 		return err
@@ -334,7 +334,7 @@ func ExtractTarStream(st io.Reader, destinationdir string) (string, error) {
 }
 
 func ExtractTar(tarfile string, destinationdir string) (string, error) {
-	tarStream, err := vfs.OS.ReadFile(tarfile)
+	tarStream, err := vfs.CurrentFS.ReadFile(tarfile)
 	var mgRootDir string
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error: cannot open "+tarfile+": "+err.Error())
@@ -407,7 +407,7 @@ func ExtractZip(zipfile string, destinationdir string) (string, error) {
 }
 
 func ExtractTarGz(gzipfile string, destinationdir string) (string, error) {
-	gzipStream, err := vfs.OS.ReadFile(gzipfile)
+	gzipStream, err := vfs.CurrentFS.ReadFile(gzipfile)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error: cannot open "+gzipfile+": "+err.Error())
 		return "", err
@@ -421,7 +421,7 @@ func ExtractTarGz(gzipfile string, destinationdir string) (string, error) {
 }
 
 func extractTarXZ(xzFile string, destinationdir string) (string, error) {
-	stream, err := vfs.OS.ReadFile(xzFile)
+	stream, err := vfs.CurrentFS.ReadFile(xzFile)
 	if err != nil {
 		return "", fmt.Errorf("error: cannot open %q: %w", xzFile, err)
 	}
@@ -437,7 +437,7 @@ func extractClientVersion(mustGatherLogsFilePath string) string {
 	filePath := mustGatherLogsFilePath
 	clientVersion := ""
 	// Open the file
-	file, err := vfs.OS.ReadFile(filePath)
+	file, err := vfs.CurrentFS.ReadFile(filePath)
 	if err != nil {
 		return ""
 	}

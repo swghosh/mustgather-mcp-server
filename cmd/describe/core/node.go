@@ -32,11 +32,11 @@ import (
 )
 
 func describeNode(currentContextPath string, namespace string, args []string) {
-	resourceDir := vfs.OS.Join(currentContextPath, "cluster-scoped-resources", "core", "nodes")
-	resourcesFiles, _ := vfs.OS.ReadDir(resourceDir)
+	resourceDir := vfs.CurrentFS.Join(currentContextPath, "cluster-scoped-resources", "core", "nodes")
+	resourcesFiles, _ := vfs.CurrentFS.ReadDir(resourceDir)
 	for _, f := range resourcesFiles {
-		resourceYamlPath := vfs.OS.Join(resourceDir, f.Name())
-		_file, _ := vfs.OS.ReadFile(resourceYamlPath)
+		resourceYamlPath := vfs.CurrentFS.Join(resourceDir, f.Name())
+		_file, _ := vfs.CurrentFS.ReadFile(resourceYamlPath)
 		_Node := corev1.Node{}
 		if err := yaml.Unmarshal(_file, &_Node); err != nil {
 			fmt.Fprintln(os.Stderr, "Error when trying to unmarshal file: "+resourceYamlPath)

@@ -14,11 +14,11 @@ var NodeLogs = &cobra.Command{
 	Use:   "node-logs",
 	Short: "Display and filter node logs.",
 	Run: func(cmd *cobra.Command, args []string) {
-		logsPath := vfs.OS.Join(vars.MustGatherRootPath, "host_service_logs", "masters")
+		logsPath := vfs.CurrentFS.Join(vars.MustGatherRootPath, "host_service_logs", "masters")
 		if len(args) == 0 {
 			fmt.Println("The following node service logs are available to be displayed:")
 			fmt.Println("")
-			files, _ := vfs.OS.ReadDir(logsPath)
+			files, _ := vfs.CurrentFS.ReadDir(logsPath)
 			for _, f := range files {
 				fmt.Println("-", strings.TrimSuffix(f.Name(), "_service.log"))
 			}
@@ -29,8 +29,8 @@ var NodeLogs = &cobra.Command{
 			os.Exit(1)
 		}
 		if len(args) == 1 {
-			logFile := vfs.OS.Join(logsPath, args[0]+"_service.log")
-			text, err := vfs.OS.ReadFile(logFile)
+			logFile := vfs.CurrentFS.Join(logsPath, args[0]+"_service.log")
+			text, err := vfs.CurrentFS.ReadFile(logFile)
 			if err != nil {
 				fmt.Fprintln(os.Stderr, "logs for service \""+args[0]+"\" not found or readable.")
 				os.Exit(1)

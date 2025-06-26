@@ -28,11 +28,11 @@ func logsPods(currentContextPath string, defaultConfigNamespace string, podName 
 	var logFilter logLineFilter = NewCRILogFilter(logLevels, nil)
 	var _Items v1.PodList
 	CurrentNamespacePath := currentContextPath + "/namespaces/" + defaultConfigNamespace
-	_file, err := vfs.OS.ReadFile(CurrentNamespacePath + "/core/pods.yaml")
+	_file, err := vfs.CurrentFS.ReadFile(CurrentNamespacePath + "/core/pods.yaml")
 	if err != nil {
 		// Sometimes the core/pods.yaml might be empty due to unknown reasons when MG is collected
 		// In such cases, we need to look for the pod in the pods directory
-		_file, err = vfs.OS.ReadFile(CurrentNamespacePath + "/pods/" + podName + "/" + podName + ".yaml")
+		_file, err = vfs.CurrentFS.ReadFile(CurrentNamespacePath + "/pods/" + podName + "/" + podName + ".yaml")
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "error: pod "+podName+" not found.")
 			os.Exit(1)

@@ -156,24 +156,24 @@ func MustGatherInfo() {
 	} else {
 		fmt.Printf("Project        : %s\n", vars.Namespace)
 	}
-	InfrastructureFilePathExists, _ := helpers.Exists(vfs.OS.Join(vars.MustGatherRootPath, "cluster-scoped-resources/config.openshift.io/infrastructures.yaml"))
+	InfrastructureFilePathExists, _ := helpers.Exists(vfs.CurrentFS.Join(vars.MustGatherRootPath, "cluster-scoped-resources/config.openshift.io/infrastructures.yaml"))
 	if InfrastructureFilePathExists {
-		_file, _ := vfs.OS.ReadFile(vfs.OS.Join(vars.MustGatherRootPath, "cluster-scoped-resources/config.openshift.io/infrastructures.yaml"))
+		_file, _ := vfs.CurrentFS.ReadFile(vfs.CurrentFS.Join(vars.MustGatherRootPath, "cluster-scoped-resources/config.openshift.io/infrastructures.yaml"))
 		infrastructureList := configv1.InfrastructureList{}
 		if err := yaml.Unmarshal([]byte(_file), &infrastructureList); err != nil {
-			fmt.Println("Error when trying to unmarshal file: " + vfs.OS.Join(vars.MustGatherRootPath, "/cluster-scoped-resources/config.openshift.io/infrastructures.yaml"))
+			fmt.Println("Error when trying to unmarshal file: " + vfs.CurrentFS.Join(vars.MustGatherRootPath, "/cluster-scoped-resources/config.openshift.io/infrastructures.yaml"))
 			os.Exit(1)
 		} else {
 			fmt.Printf("ApiServerURL   : %s\n", infrastructureList.Items[0].Status.APIServerURL)
 			fmt.Printf("Platform       : %s\n", infrastructureList.Items[0].Status.PlatformStatus.Type)
 		}
 	}
-	clusterversionFilePathExists, _ := helpers.Exists(vfs.OS.Join(vars.MustGatherRootPath, "cluster-scoped-resources/config.openshift.io/clusterversions/version.yaml"))
+	clusterversionFilePathExists, _ := helpers.Exists(vfs.CurrentFS.Join(vars.MustGatherRootPath, "cluster-scoped-resources/config.openshift.io/clusterversions/version.yaml"))
 	if clusterversionFilePathExists {
-		_file, _ := vfs.OS.ReadFile(vfs.OS.Join(vars.MustGatherRootPath, "cluster-scoped-resources/config.openshift.io/clusterversions/version.yaml"))
+		_file, _ := vfs.CurrentFS.ReadFile(vfs.CurrentFS.Join(vars.MustGatherRootPath, "cluster-scoped-resources/config.openshift.io/clusterversions/version.yaml"))
 		ClusterVersion := configv1.ClusterVersion{}
 		if err := yaml.Unmarshal([]byte(_file), &ClusterVersion); err != nil {
-			fmt.Println("Error when trying to unmarshal file: " + vfs.OS.Join(vars.MustGatherRootPath, "/cluster-scoped-resources/config.openshift.io/clusterversions/version.yaml"))
+			fmt.Println("Error when trying to unmarshal file: " + vfs.CurrentFS.Join(vars.MustGatherRootPath, "/cluster-scoped-resources/config.openshift.io/clusterversions/version.yaml"))
 			os.Exit(1)
 		} else {
 			clusterversion := ""
@@ -220,7 +220,7 @@ var UseCmd = &cobra.Command{
 		path := ""
 		isCompressedFile := false
 		fileType := ""
-		fs := vfs.OS
+		fs := vfs.CurrentFS
 
 		if len(args) == 0 && idFlag == "" {
 			MustGatherInfo()

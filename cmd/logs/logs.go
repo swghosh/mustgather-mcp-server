@@ -41,7 +41,7 @@ var Logs = &cobra.Command{
 		}
 		exist, _ := helpers.Exists(vars.MustGatherRootPath + "/namespaces")
 		if !exist {
-			files, err := vfs.OS.ReadDir(vars.MustGatherRootPath)
+			files, err := vfs.CurrentFS.ReadDir(vars.MustGatherRootPath)
 			if err != nil {
 				log.Fatal(err)
 			}

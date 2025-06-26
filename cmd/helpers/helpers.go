@@ -177,7 +177,7 @@ func ExtractLabel(_labels map[string]string, _label string) string {
 // doing this because of a bug who append three characthers to the first node yaml file
 func ReadYaml(YamlPath string) []byte {
 	var __file []byte
-	fileBytes, err := vfs.OS.ReadFile(YamlPath)
+	fileBytes, err := vfs.CurrentFS.ReadFile(YamlPath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -198,11 +198,11 @@ func ReadYaml(YamlPath string) []byte {
 
 func GetAge(resourcefilePath string, resourceCreationTimeStamp v1.Time) string {
 	var ResourceFile fs.FileInfo
-	ResourceFile, err := vfs.OS.Stat(resourcefilePath + "/timestamp")
+	ResourceFile, err := vfs.CurrentFS.Stat(resourcefilePath + "/timestamp")
 	if err != nil {
-		ResourceFile, err = vfs.OS.Stat(resourcefilePath + "/namespaces")
+		ResourceFile, err = vfs.CurrentFS.Stat(resourcefilePath + "/namespaces")
 		if err != nil {
-			ResourceFile, err = vfs.OS.Stat(resourcefilePath + "/cluster-scoped-resources")
+			ResourceFile, err = vfs.CurrentFS.Stat(resourcefilePath + "/cluster-scoped-resources")
 			if err != nil {
 				return "Unknown"
 			}
@@ -216,7 +216,7 @@ func GetAge(resourcefilePath string, resourceCreationTimeStamp v1.Time) string {
 }
 
 func IsDirectory(path string) (bool, error) {
-	fileInfo, err := vfs.OS.Stat(path)
+	fileInfo, err := vfs.CurrentFS.Stat(path)
 	if err != nil {
 		return false, err
 	}
@@ -225,7 +225,7 @@ func IsDirectory(path string) (bool, error) {
 }
 
 func Exists(path string) (bool, error) {
-	_, err := vfs.OS.Stat(path)
+	_, err := vfs.CurrentFS.Stat(path)
 	if err == nil {
 		return true, nil
 	}
@@ -279,11 +279,11 @@ func PrintOutput(resource interface{}, columns int16, outputFlag string, resourc
 }
 
 func Cat(filePath string) {
-	if _, err := vfs.OS.Stat(filePath); os.IsNotExist(err) {
+	if _, err := vfs.CurrentFS.Stat(filePath); os.IsNotExist(err) {
 		fmt.Fprintln(os.Stderr, "error: could not find file "+filePath)
 		os.Exit(1)
 	}
-	fileBytes, err := vfs.OS.ReadFile(filePath)
+	fileBytes, err := vfs.CurrentFS.ReadFile(filePath)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error: could not read file "+filePath)
 		os.Exit(1)
@@ -406,7 +406,7 @@ func TranslateTimestamp(timestamp metav1.Time) string {
 	if timestamp.IsZero() {
 		return "<unknown>"
 	}
-	ResourceFile, _ := vfs.OS.Stat(vfs.OS.Join(vars.MustGatherRootPath, "namespaces"))
+	ResourceFile, _ := vfs.CurrentFS.Stat(vfs.CurrentFS.Join(vars.MustGatherRootPath, "namespaces"))
 	t2 := ResourceFile.ModTime()
 	return ShortHumanDuration(t2.Sub(timestamp.Time))
 }

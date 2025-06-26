@@ -32,7 +32,7 @@ import (
 
 func projectDefault(omcConfigFile string, projDefault string) {
 	var namespaces []string
-	_namespaces, _ := vfs.OS.ReadDir(vfs.OS.Join(vars.MustGatherRootPath, "namespaces"))
+	_namespaces, _ := vfs.CurrentFS.ReadDir(vfs.CurrentFS.Join(vars.MustGatherRootPath, "namespaces"))
 	for _, f := range _namespaces {
 		namespaces = append(namespaces, f.Name())
 	}

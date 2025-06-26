@@ -236,5 +236,6 @@ func (l *LocalFS) Join(elem ...string) string {
 	return filepath.Join(elem...)
 }
 
-// OS is the default filesystem that uses the local disk.
-var OS Filesystem = &LocalFS{}
+// CurrentFS is the default filesystem that uses the local disk.
+// It is switched to GCS when config detects.
+var CurrentFS Filesystem = &LocalFS{}

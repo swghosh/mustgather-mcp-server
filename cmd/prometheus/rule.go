@@ -37,7 +37,7 @@ func GetAlertRules(resourcesNames []string, outputFlag string, groupsNames strin
 	var filteredRules []Rule
 	var filteredRulesList FilteredRulesList
 	var _Alerts alerts
-	_file, _ := vfs.OS.ReadFile(alertsFilePath)
+	_file, _ := vfs.CurrentFS.ReadFile(alertsFilePath)
 	if err := yaml.Unmarshal([]byte(_file), &_Alerts); err != nil {
 		fmt.Fprintln(os.Stderr, "Error when trying to unmarshal file "+alertsFilePath)
 		os.Exit(1)

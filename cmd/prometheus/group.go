@@ -35,7 +35,7 @@ func GetAlertGroups(resourcesNames []string, outputFlag string, groupFile string
 	var data [][]string
 	var filteredGroups []RuleGroup
 	var _Alerts alerts
-	_file, _ := vfs.OS.ReadFile(alertsFilePath)
+	_file, _ := vfs.CurrentFS.ReadFile(alertsFilePath)
 	if err := yaml.Unmarshal([]byte(_file), &_Alerts); err != nil {
 		fmt.Fprintln(os.Stderr, "Error when trying to unmarshal file "+alertsFilePath)
 		os.Exit(1)
@@ -57,7 +57,7 @@ func GetAlertGroups(resourcesNames []string, outputFlag string, groupFile string
 		}
 
 		//fmt.Println(al.Name, filename)
-		ResourceFile, _ := vfs.OS.Stat(alertsFilePath)
+		ResourceFile, _ := vfs.CurrentFS.Stat(alertsFilePath)
 		t2 := ResourceFile.ModTime()
 		diffTime := t2.Sub(group.LastEvaluation).String()
 		d, _ := time.ParseDuration(diffTime)
@@ -94,16 +94,16 @@ var GroupSubCmd = &cobra.Command{
 	Short:   "Retrieve the alerting rules' groups configured in Prometheus.",
 	Run: func(cmd *cobra.Command, args []string) {
 		resourcesNames := args
-		monitoringPath := vfs.OS.Join(vars.MustGatherRootPath, "monitoring")
+		monitoringPath := vfs.CurrentFS.Join(vars.MustGatherRootPath, "monitoring")
 		monitoringExist, _ := helpers.Exists(monitoringPath)
 		if !monitoringExist {
 			fmt.Fprintln(os.Stderr, "Path '"+monitoringPath+"' does not exist.")
 			os.Exit(1)
 		}
-		alertsFilePath := vfs.OS.Join(vars.MustGatherRootPath, "monitoring", "alerts.json")
+		alertsFilePath := vfs.CurrentFS.Join(vars.MustGatherRootPath, "monitoring", "alerts.json")
 		alertsFilePathExist, _ := helpers.Exists(alertsFilePath)
 		if !alertsFilePathExist {
-			alertsFilePath = vfs.OS.Join(vars.MustGatherRootPath, "monitoring", "prometheus", "rules.json")
+			alertsFilePath = vfs.CurrentFS.Join(vars.MustGatherRootPath, "monitoring", "prometheus", "rules.json")
 			alertsFilePathExist, _ := helpers.Exists(alertsFilePath)
 			if !alertsFilePathExist {
 				fmt.Fprintln(os.Stderr, "Prometheus rules not found in must-gather.")
