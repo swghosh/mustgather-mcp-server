@@ -49,8 +49,8 @@ func RandString(length int) string {
 	return StringWithCharset(length, charset)
 }
 
-func PrintTable(headers []string, data [][]string) {
-	table := tablewriter.NewWriter(os.Stdout)
+func RenderTable(writer io.Writer, headers []string, data [][]string) {
+	table := tablewriter.NewWriter(writer)
 	table.SetHeader(headers)
 	table.SetAutoWrapText(false)
 	table.SetAutoFormatHeaders(true)
@@ -65,6 +65,10 @@ func PrintTable(headers []string, data [][]string) {
 	table.SetNoWhiteSpace(true)
 	table.AppendBulk(data)
 	table.Render()
+}
+
+func PrintTable(headers []string, data [][]string) {
+	RenderTable(os.Stdout, headers, data)
 }
 
 func FormatDiffTime(diff time.Duration) string {
@@ -102,8 +106,7 @@ func FormatDiffTime(diff time.Duration) string {
 	return strconv.Itoa(int(diff.Seconds())) + "s"
 }
 
-func ExecuteJsonPath(data interface{}, jsonPathTemplate string) {
-	buf := new(bytes.Buffer)
+func ExecuteJsonPath(data interface{}, jsonPathTemplate string, writer io.Writer) {
 	jPath := jsonpath.New("out")
 	jPath.AllowMissingKeys(false)
 	jPath.EnableJSONOutput(false)
@@ -112,8 +115,7 @@ func ExecuteJsonPath(data interface{}, jsonPathTemplate string) {
 		fmt.Fprintln(os.Stderr, "error: error parsing jsonpath "+jsonPathTemplate+", "+err.Error())
 		os.Exit(1)
 	}
-	jPath.Execute(buf, data)
-	fmt.Print(buf)
+	jPath.Execute(writer, data)
 }
 
 func CreateConfigFile(cfgFilePath string) {
@@ -235,7 +237,7 @@ func Exists(path string) (bool, error) {
 	return false, err
 }
 
-func PrintOutput(resource interface{}, columns int16, outputFlag string, resourceName string, allNamespacesFlag bool, showLabels bool, _headers []string, data [][]string, jsonPathTemplate string) bool {
+func PrintOutput(resource interface{}, columns int16, outputFlag string, resourceName string, allNamespacesFlag bool, showLabels bool, _headers []string, data [][]string, writer io.Writer) bool {
 	var headers []string
 	if outputFlag == "" {
 		if allNamespacesFlag == true {
@@ -246,7 +248,7 @@ func PrintOutput(resource interface{}, columns int16, outputFlag string, resourc
 		if showLabels {
 			headers = append(headers, "labels")
 		}
-		PrintTable(headers, data)
+		RenderTable(writer, headers, data)
 		return false
 	}
 	if outputFlag == "wide" {
@@ -258,7 +260,7 @@ func PrintOutput(resource interface{}, columns int16, outputFlag string, resourc
 		if showLabels {
 			headers = append(headers, "labels")
 		}
-		PrintTable(headers, data)
+		RenderTable(writer, headers, data)
 		return false
 	}
 
@@ -266,14 +268,14 @@ func PrintOutput(resource interface{}, columns int16, outputFlag string, resourc
 
 	if outputFlag == "yaml" {
 		y, _ := yaml.Marshal(resource)
-		fmt.Println(string(y))
+		fmt.Fprintln(writer, string(y))
 	}
 	if outputFlag == "json" {
 		j, _ := json.MarshalIndent(resource, "", "  ")
-		fmt.Println(string(j))
+		fmt.Fprintln(writer, string(j))
 	}
 	if strings.HasPrefix(outputFlag, "jsonpath=") {
-		ExecuteJsonPath(resource, jsonPathTemplate)
+		ExecuteJsonPath(resource, GetJsonTemplate(outputFlag), writer)
 	}
 	return false
 }

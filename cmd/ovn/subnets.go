@@ -38,170 +38,180 @@ var SubnetsCmd = &cobra.Command{
 	Aliases: []string{"subnet"},
 	Short:   "Retrieve the ovn nodes and subnets they are providing.",
 	Run: func(cmd *cobra.Command, args []string) {
-
-		nodesFolderPath := vars.MustGatherRootPath + "/cluster-scoped-resources/core/nodes/"
-		_nodes, _ := os.ReadDir(nodesFolderPath)
-
-		var data [][]string
-		var ipv4InHeaders, ipv6InHeaders, gatewayIPInHeaders,
-			primaryIfAddrInHeaders, nodeSubnetInHeaders, nodeGatewayRouterIpInHeaders bool
-		headers := []string{"HOST/NODE", "ROLE"}
-		for _, f := range _nodes {
-			nodeYamlPath := nodesFolderPath + f.Name()
-			_file := helpers.ReadYaml(nodeYamlPath)
-			Node := corev1.Node{}
-			if err := yaml.Unmarshal([]byte(_file), &Node); err != nil {
-				fmt.Fprintln(os.Stderr, "Error when trying to unmarshal file: "+nodeYamlPath)
-				os.Exit(1)
-			}
-			//ROLE
-			var NodeRoles []string
-			NodeRole := ""
-			for i := range Node.ObjectMeta.Labels {
-				if strings.HasPrefix(i, "node-role.kubernetes.io/") {
-					s := strings.Split(i, "/")
-					NodeRoles = append(NodeRoles, s[1])
-				}
-			}
-			slices.Sort(NodeRoles)
-			NodeRole = strings.Join(NodeRoles, ",")
-
-			row := []string{Node.Name, NodeRole}
-			ipv4String := Node.ObjectMeta.Annotations["alpha.kubernetes.io/provided-node-ip"]
-			ipv6String := ""
-			var ipsArray []string
-			var ipv4Array []string
-			var ipv6Array []string
-			hostAddresses := Node.ObjectMeta.Annotations["k8s.ovn.org/host-addresses"]
-			if hostAddresses != "" {
-				err := yaml.Unmarshal([]byte(hostAddresses), &ipsArray)
-				if err != nil {
-					panic(err)
-				}
-				for _, ip := range ipsArray {
-					if strings.Contains(ip, ":") {
-						ipv6Array = append(ipv6Array, ip)
-					} else {
-						ipv4Array = append(ipv4Array, ip)
-					}
-				}
-			}
-			// "k8s.ovn.org/host-addresses" was renamed to "k8s.ovn.org/host-cidrs" in 4.14
-			hostCIDRS := Node.ObjectMeta.Annotations["k8s.ovn.org/host-cidrs"]
-			if hostCIDRS != "" {
-				err := yaml.Unmarshal([]byte(hostCIDRS), &ipsArray)
-				if err != nil {
-					panic(err)
-				}
-				for _, ip := range ipsArray {
-					if strings.Contains(ip, ":") {
-						ipv6Array = append(ipv6Array, ip)
-					} else {
-						ipv4Array = append(ipv4Array, ip)
-					}
-				}
-			}
-			if len(ipv4Array) != 0 {
-				ipv4String = strings.Join(ipv4Array, ",")
-			}
-			if len(ipv6Array) != 0 {
-				ipv6String = strings.Join(ipv6Array, ",")
-			}
-			if ipv6String != "" {
-				row = append(row, ipv6String)
-				if !ipv6InHeaders {
-					headers = append(headers, "HOST IPV6-ADDRESSES")
-					ipv6InHeaders = true
-				}
-			}
-			if ipv4String != "" {
-				row = append(row, ipv4String)
-				if !ipv4InHeaders {
-					headers = append(headers, "HOST IP-ADDRESSES")
-					ipv4InHeaders = true
-				}
-			}
-
-			primaryIfAddr := ""
-			primaryIfAddrStrMap := Node.ObjectMeta.Annotations["k8s.ovn.org/node-primary-ifaddr"]
-			if primaryIfAddrStrMap != "" {
-				var ifaddr map[string]string
-				if err := yaml.Unmarshal([]byte(primaryIfAddrStrMap), &ifaddr); err != nil {
-					panic(err)
-				}
-				primaryIfAddr = ifaddr["ipv4"]
-			}
-			if primaryIfAddr != "" {
-				row = append(row, primaryIfAddr)
-				if !primaryIfAddrInHeaders {
-					headers = append(headers, "PRIMARY IF-ADDRESS")
-					primaryIfAddrInHeaders = true
-				}
-			}
-
-			gatewayIP := ""
-			GatewayConfigString := Node.ObjectMeta.Annotations["k8s.ovn.org/l3-gateway-config"]
-			if GatewayConfigString != "" {
-				var GatewayConf GatewayConfig
-				if err := yaml.Unmarshal([]byte(GatewayConfigString), &GatewayConf); err != nil {
-					panic(err)
-				}
-				gatewayIP = strings.Join(GatewayConf.Default.NextHops, ",")
-			}
-			if gatewayIP != "" {
-				row = append(row, gatewayIP)
-				if !gatewayIPInHeaders {
-					headers = append(headers, "HOST GATEWAY-IP")
-					gatewayIPInHeaders = true
-				}
-			}
-
-			nodeSubnet := ""
-			nodeSubnetStrMap := Node.ObjectMeta.Annotations["k8s.ovn.org/node-subnets"]
-			if nodeSubnetStrMap != "" {
-				var subnet map[string]string
-				if err := yaml.Unmarshal([]byte(nodeSubnetStrMap), &subnet); err != nil {
-					var subnet map[string][]string
-					if err := yaml.Unmarshal([]byte(nodeSubnetStrMap), &subnet); err != nil {
-						panic(err)
-					}
-					nodeSubnet = strings.Join(subnet["default"], ",")
-				} else {
-					nodeSubnet = subnet["default"]
-				}
-			}
-
-			if nodeSubnet != "" {
-				row = append(row, nodeSubnet)
-				if !nodeSubnetInHeaders {
-					headers = append(headers, "NODE SUBNET")
-					nodeSubnetInHeaders = true
-				}
-			}
-
-			if vars.OutputStringVar == "wide" {
-				nodeGatewayRouterIp := ""
-				nodeGatewayRouterIpStrMap := Node.ObjectMeta.Annotations["k8s.ovn.org/node-gateway-router-lrp-ifaddr"]
-				if nodeGatewayRouterIpStrMap != "" {
-					var gatewayRouterIp map[string]string
-					if err := yaml.Unmarshal([]byte(nodeGatewayRouterIpStrMap), &gatewayRouterIp); err != nil {
-						panic(err)
-					}
-					nodeGatewayRouterIp = gatewayRouterIp["ipv4"]
-				}
-				if nodeGatewayRouterIp != "" {
-					row = append(row, nodeGatewayRouterIp)
-					if !nodeGatewayRouterIpInHeaders {
-						headers = append(headers, "NODE GW-ROUTER-IP")
-						nodeGatewayRouterIpInHeaders = true
-					}
-				}
-			}
-			data = append(data, row)
-
+		headers, data, err := subnets()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
 		}
 		helpers.PrintTable(headers, data)
 	},
+}
+
+func subnets() ([]string, [][]string, error) {
+	nodesFolderPath := vars.MustGatherRootPath + "/cluster-scoped-resources/core/nodes/"
+	_nodes, err := os.ReadDir(nodesFolderPath)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var data [][]string
+	var ipv4InHeaders, ipv6InHeaders, gatewayIPInHeaders,
+		primaryIfAddrInHeaders, nodeSubnetInHeaders, nodeGatewayRouterIpInHeaders bool
+	headers := []string{"HOST/NODE", "ROLE"}
+	for _, f := range _nodes {
+		nodeYamlPath := nodesFolderPath + f.Name()
+		_file := helpers.ReadYaml(nodeYamlPath)
+		Node := corev1.Node{}
+		if err := yaml.Unmarshal([]byte(_file), &Node); err != nil {
+			return nil, nil, fmt.Errorf("Error when trying to unmarshal file: " + nodeYamlPath)
+		}
+		//ROLE
+		var NodeRoles []string
+		NodeRole := ""
+		for i := range Node.ObjectMeta.Labels {
+			if strings.HasPrefix(i, "node-role.kubernetes.io/") {
+				s := strings.Split(i, "/")
+				NodeRoles = append(NodeRoles, s[1])
+			}
+		}
+		slices.Sort(NodeRoles)
+		NodeRole = strings.Join(NodeRoles, ",")
+
+		row := []string{Node.Name, NodeRole}
+		ipv4String := Node.ObjectMeta.Annotations["alpha.kubernetes.io/provided-node-ip"]
+		ipv6String := ""
+		var ipsArray []string
+		var ipv4Array []string
+		var ipv6Array []string
+		hostAddresses := Node.ObjectMeta.Annotations["k8s.ovn.org/host-addresses"]
+		if hostAddresses != "" {
+			err := yaml.Unmarshal([]byte(hostAddresses), &ipsArray)
+			if err != nil {
+				return nil, nil, err
+			}
+			for _, ip := range ipsArray {
+				if strings.Contains(ip, ":") {
+					ipv6Array = append(ipv6Array, ip)
+				} else {
+					ipv4Array = append(ipv4Array, ip)
+				}
+			}
+		}
+		// "k8s.ovn.org/host-addresses" was renamed to "k8s.ovn.org/host-cidrs" in 4.14
+		hostCIDRS := Node.ObjectMeta.Annotations["k8s.ovn.org/host-cidrs"]
+		if hostCIDRS != "" {
+			err := yaml.Unmarshal([]byte(hostCIDRS), &ipsArray)
+			if err != nil {
+				return nil, nil, err
+			}
+			for _, ip := range ipsArray {
+				if strings.Contains(ip, ":") {
+					ipv6Array = append(ipv6Array, ip)
+				} else {
+					ipv4Array = append(ipv4Array, ip)
+				}
+			}
+		}
+		if len(ipv4Array) != 0 {
+			ipv4String = strings.Join(ipv4Array, ",")
+		}
+		if len(ipv6Array) != 0 {
+			ipv6String = strings.Join(ipv6Array, ",")
+		}
+		if ipv6String != "" {
+			row = append(row, ipv6String)
+			if !ipv6InHeaders {
+				headers = append(headers, "HOST IPV6-ADDRESSES")
+				ipv6InHeaders = true
+			}
+		}
+		if ipv4String != "" {
+			row = append(row, ipv4String)
+			if !ipv4InHeaders {
+				headers = append(headers, "HOST IP-ADDRESSES")
+				ipv4InHeaders = true
+			}
+		}
+
+		primaryIfAddr := ""
+		primaryIfAddrStrMap := Node.ObjectMeta.Annotations["k8s.ovn.org/node-primary-ifaddr"]
+		if primaryIfAddrStrMap != "" {
+			var ifaddr map[string]string
+			if err := yaml.Unmarshal([]byte(primaryIfAddrStrMap), &ifaddr); err != nil {
+				return nil, nil, err
+			}
+			primaryIfAddr = ifaddr["ipv4"]
+		}
+		if primaryIfAddr != "" {
+			row = append(row, primaryIfAddr)
+			if !primaryIfAddrInHeaders {
+				headers = append(headers, "PRIMARY IF-ADDRESS")
+				primaryIfAddrInHeaders = true
+			}
+		}
+
+		gatewayIP := ""
+		GatewayConfigString := Node.ObjectMeta.Annotations["k8s.ovn.org/l3-gateway-config"]
+		if GatewayConfigString != "" {
+			var GatewayConf GatewayConfig
+			if err := yaml.Unmarshal([]byte(GatewayConfigString), &GatewayConf); err != nil {
+				return nil, nil, err
+			}
+			gatewayIP = strings.Join(GatewayConf.Default.NextHops, ",")
+		}
+		if gatewayIP != "" {
+			row = append(row, gatewayIP)
+			if !gatewayIPInHeaders {
+				headers = append(headers, "HOST GATEWAY-IP")
+				gatewayIPInHeaders = true
+			}
+		}
+
+		nodeSubnet := ""
+		nodeSubnetStrMap := Node.ObjectMeta.Annotations["k8s.ovn.org/node-subnets"]
+		if nodeSubnetStrMap != "" {
+			var subnet map[string]string
+			if err := yaml.Unmarshal([]byte(nodeSubnetStrMap), &subnet); err != nil {
+				var subnet map[string][]string
+				if err := yaml.Unmarshal([]byte(nodeSubnetStrMap), &subnet); err != nil {
+					return nil, nil, err
+				}
+				nodeSubnet = strings.Join(subnet["default"], ",")
+			} else {
+				nodeSubnet = subnet["default"]
+			}
+		}
+
+		if nodeSubnet != "" {
+			row = append(row, nodeSubnet)
+			if !nodeSubnetInHeaders {
+				headers = append(headers, "NODE SUBNET")
+				nodeSubnetInHeaders = true
+			}
+		}
+
+		if vars.OutputStringVar == "wide" {
+			nodeGatewayRouterIp := ""
+			nodeGatewayRouterIpStrMap := Node.ObjectMeta.Annotations["k8s.ovn.org/node-gateway-router-lrp-ifaddr"]
+			if nodeGatewayRouterIpStrMap != "" {
+				var gatewayRouterIp map[string]string
+				if err := yaml.Unmarshal([]byte(nodeGatewayRouterIpStrMap), &gatewayRouterIp); err != nil {
+					return nil, nil, err
+				}
+				nodeGatewayRouterIp = gatewayRouterIp["ipv4"]
+			}
+			if nodeGatewayRouterIp != "" {
+				row = append(row, nodeGatewayRouterIp)
+				if !nodeGatewayRouterIpInHeaders {
+					headers = append(headers, "NODE GW-ROUTER-IP")
+					nodeGatewayRouterIpInHeaders = true
+				}
+			}
+		}
+		data = append(data, row)
+
+	}
+	return headers, data, nil
 }
 
 type GatewayConfig struct {

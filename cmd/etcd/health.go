@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,14 +16,17 @@ limitations under the License.
 package etcd
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/gmeghnag/omc/vars"
 
 	"github.com/spf13/cobra"
 )
 
-func etcdHealthCommand(currentContextPath string) {
+func etcdHealthCommand(currentContextPath string) error {
 	etcdFolderPath := currentContextPath + "/etcd_info/"
-	EndpointHealth(etcdFolderPath)
+	return EndpointHealth(etcdFolderPath)
 }
 
 // etcdCmd represents the etcd command
@@ -31,6 +34,9 @@ var Health = &cobra.Command{
 	Use:   "health",
 	Short: "Etcd health",
 	Run: func(cmd *cobra.Command, args []string) {
-		etcdHealthCommand(vars.MustGatherRootPath)
+		if err := etcdHealthCommand(vars.MustGatherRootPath); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
 	},
 }

@@ -38,48 +38,58 @@ var Backends = &cobra.Command{
 	Use:   "backends",
 	Short: "Inspect haproxy configured backends.",
 	Run: func(cmd *cobra.Command, args []string) {
-
-		// in general if omc is not invoked with a specific --namespace / -n
-		// option, it defaults to the user's current context project (see
-		// root/root.go)
-		// the approach for the `haproxy backends` subcommand
-		// differs from omc's default behaviour as here we list backends for all
-		// namespaces unless a specific namespace is provided through the root
-		// flag
-		var wantedNamespace string
-		if cmd.Flags().Changed("namespace") {
-			wantedNamespace = vars.Namespace
+		output, err := backends(cmd)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
 		}
-		writer := tabwriter.NewWriter(os.Stdout, 0, 8, 1, '\t', tabwriter.AlignRight)
-		fmt.Fprintln(writer, "NAMESPACE\tNAME\tINGRESSCONTROLLER\tSERVICES\tPORT\tTERMINATION")
-		for _, configfile := range haproxyConfigFiles(vars.MustGatherRootPath) {
-			backends := parseHAProxyConfig(configfile, wantedNamespace)
-			for _, b := range backends {
-				fmt.Fprintln(writer, b)
-			}
-		}
-		writer.Flush()
+		fmt.Print(output)
 	},
 }
 
-func haproxyConfigFiles(root string) []string {
+func backends(cmd *cobra.Command) (string, error) {
+	var wantedNamespace string
+	if cmd.Flags().Changed("namespace") {
+		wantedNamespace = vars.Namespace
+	}
+	var output strings.Builder
+	writer := tabwriter.NewWriter(&output, 0, 8, 1, '\t', tabwriter.AlignRight)
+	fmt.Fprintln(writer, "NAMESPACE\tNAME\tINGRESSCONTROLLER\tSERVICES\tPORT\tTERMINATION")
+
+	configs, err := haproxyConfigFiles(vars.MustGatherRootPath)
+	if err != nil {
+		return "", err
+	}
+
+	for _, configfile := range configs {
+		backends, err := parseHAProxyConfig(configfile, wantedNamespace)
+		if err != nil {
+			return "", err
+		}
+		for _, b := range backends {
+			fmt.Fprintln(writer, b)
+		}
+	}
+	writer.Flush()
+	return output.String(), nil
+}
+
+func haproxyConfigFiles(root string) ([]string, error) {
 	pattern := root + haproxy_config_glob
 	files, err := filepath.Glob(pattern)
 	if err != nil {
-		fmt.Println("Error:", err)
-		return nil
+		return nil, fmt.Errorf("Error: %w", err)
 	}
-	return files
+	return files, nil
 }
 
 // parse backend lines from a haproxy config file
 // if a namespace is provided, only backends in that namespace are considered
-func parseHAProxyConfig(filename string, wantedNamespace string) []*backend {
+func parseHAProxyConfig(filename string, wantedNamespace string) ([]*backend, error) {
 	ic := icFromFileName(filename)
 	file, err := os.Open(filename)
 	if err != nil {
-		fmt.Println(err)
-		return nil
+		return nil, err
 	}
 	defer file.Close()
 
@@ -93,9 +103,15 @@ func parseHAProxyConfig(filename string, wantedNamespace string) []*backend {
 			if wantedNamespace == "" || backend.namespace == wantedNamespace {
 				for scanner.Scan() {
 					backendLine := scanner.Text()
-					serverLine := isServerLine(backendLine)
+					serverLine, err := isServerLine(backendLine)
+					if err != nil {
+						return nil, err
+					}
 					if serverLine != "" {
-						backend.service = serviceFromServerLine(serverLine)
+						backend.service, err = serviceFromServerLine(serverLine)
+						if err != nil {
+							return nil, err
+						}
 						backend.ingressController = ic
 						break
 					}
@@ -106,9 +122,9 @@ func parseHAProxyConfig(filename string, wantedNamespace string) []*backend {
 	}
 
 	if err := scanner.Err(); err != nil {
-		fmt.Println(err)
+		return nil, err
 	}
-	return backends
+	return backends, nil
 }
 
 func icFromFileName(filename string) string {
@@ -184,30 +200,26 @@ func (p port) String() string {
 }
 
 // test if a line starts with '  server pod:' and return up up to the key/value as a string; empty string if no match
-func isServerLine(line string) string {
+func isServerLine(line string) (string, error) {
 	serverRe := `^  server pod:([a-z0-9\-\_\:\.]*) `
 	re := regexp.MustCompile(serverRe)
 
 	matches := re.FindStringSubmatch(line)
 	if len(matches) != 2 {
-		return ""
+		return "", nil
 	}
-	return matches[1]
+	return matches[1], nil
 }
 
-func serviceFromServerLine(line string) *service {
+func serviceFromServerLine(line string) (*service, error) {
 	parts := strings.Split(line, ":")
 	portNr, err := strconv.Atoi(parts[4])
 	if err != nil {
-		fmt.Printf("Failed to convert port value (%+v) to an int.\n", parts[4])
-		return &service{
-			serviceName: parts[1],
-			port:        &port{portName: parts[2]},
-		}
+		return nil, fmt.Errorf("Failed to convert port value (%+v) to an int", parts[4])
 	}
 
 	return &service{
 		serviceName: parts[1],
 		port:        &port{portNr: portNr, portName: parts[2]},
-	}
+	}, nil
 }

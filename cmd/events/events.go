@@ -39,15 +39,12 @@ var EventsCmd = &cobra.Command{
 	Use:   "events",
 	Short: "Display events that are sorted by time.",
 	Run: func(cmd *cobra.Command, args []string) {
-		err := Validate()
+		output, err := events(vars.MustGatherRootPath, vars.Namespace, vars.AllNamespaceBoolVar, vars.EventTypes, vars.ForResource, vars.OutputStringVar)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		eventList := GetEventList(vars.MustGatherRootPath, vars.Namespace, vars.AllNamespaceBoolVar)
-		FilterEventList(&eventList, vars.EventTypes, vars.ForResource)
-		SortEventList(&eventList)
-		PrintEventList(&eventList, vars.MustGatherRootPath, vars.OutputStringVar, vars.Namespace, vars.AllNamespaceBoolVar)
+		fmt.Print(output)
 	},
 }
 
@@ -58,6 +55,19 @@ func init() {
 	EventsCmd.PersistentFlags().StringVarP(&vars.OutputStringVar, "output", "o", "", "Output format. One of: json|yaml|name")
 }
 
+func events(context, selectedNs string, allNamespaces bool, eventTypes []string, forResource, output string) (string, error) {
+	if err := Validate(); err != nil {
+		return "", err
+	}
+	eventList, err := GetEventList(context, selectedNs, allNamespaces)
+	if err != nil {
+		return "", err
+	}
+	FilterEventList(&eventList, eventTypes, forResource)
+	SortEventList(&eventList)
+	return PrintEventList(&eventList, context, output, selectedNs, allNamespaces)
+}
+
 func Validate() error {
 	if len(vars.ForResource) > 0 && !strings.Contains(vars.ForResource, "/") {
 		return fmt.Errorf("error when parsing --for: resource must be in resource/name form")
@@ -65,20 +75,19 @@ func Validate() error {
 	return nil
 }
 
-func GetEventList(context string, selectedNs string, allNamespaces bool) (eventList corev1.EventList) {
+func GetEventList(context string, selectedNs string, allNamespaces bool) (corev1.EventList, error) {
+	var eventList corev1.EventList
 	eventsLocation := "/core/events.yaml"
 	nsFolder := context + "/namespaces/"
 	var namespaces []string
 	if allNamespaces {
 		fileObj, err := os.Open(nsFolder)
 		if err != nil {
-			klog.ErrorS(err, "Unable to read "+nsFolder)
-			os.Exit(1)
+			return eventList, fmt.Errorf("Unable to read %s: %s", nsFolder, err)
 		}
 		namespaces, err = fileObj.Readdirnames(0)
 		if err != nil {
-			klog.ErrorS(err, "Unable to list directories in "+nsFolder)
-			os.Exit(1)
+			return eventList, fmt.Errorf("Unable to list directories in %s: %s", nsFolder, err)
 		}
 	} else {
 		namespaces = append(namespaces, selectedNs)
@@ -102,7 +111,7 @@ func GetEventList(context string, selectedNs string, allNamespaces bool) (eventL
 		}
 		eventList.Items = append(eventList.Items, nsEvents.Items...)
 	}
-	return eventList
+	return eventList, nil
 }
 
 func FilterEventList(eventList *corev1.EventList, types []string, forResource string) {
@@ -149,35 +158,37 @@ func SortEventList(eventList *corev1.EventList) {
 	})
 }
 
-func PrintEventList(eventList *corev1.EventList, context string, output string, selectedNs string, allNamespaces bool) {
+func PrintEventList(eventList *corev1.EventList, context string, output string, selectedNs string, allNamespaces bool) (string, error) {
+	var w strings.Builder
 	if len(eventList.Items) == 0 {
 		if allNamespaces {
-			fmt.Printf("No events found.\n")
+			fmt.Fprintf(&w, "No events found.\n")
 		} else {
-			fmt.Printf("No events found in %s namespace.\n", selectedNs)
+			fmt.Fprintf(&w, "No events found in %s namespace.\n", selectedNs)
 		}
+		return w.String(), nil
 	}
 
 	var cliPrinter cliprint.ResourcePrinter
 	if output == "name" {
 		cliPrinter := cliprint.NamePrinter{ShortOutput: true}
 		for _, event := range eventList.Items {
-			err := cliPrinter.PrintObj(&event, os.Stdout)
+			err := cliPrinter.PrintObj(&event, &w)
 			if err != nil {
-				klog.V(3).ErrorS(err, "Error when outputting names of events")
+				return "", fmt.Errorf("Error when outputting names of events: %w", err)
 			}
 		}
 	} else if output == "yaml" {
 		cliPrinter := cliprint.YAMLPrinter{}
-		err := cliPrinter.PrintObj(eventList, os.Stdout)
+		err := cliPrinter.PrintObj(eventList, &w)
 		if err != nil {
-			klog.V(3).ErrorS(err, "Error when outputting YAML of events")
+			return "", fmt.Errorf("Error when outputting YAML of events: %w", err)
 		}
 	} else if output == "json" {
 		cliPrinter := cliprint.JSONPrinter{}
-		err := cliPrinter.PrintObj(eventList, os.Stdout)
+		err := cliPrinter.PrintObj(eventList, &w)
 		if err != nil {
-			klog.V(3).ErrorS(err, "Error when outputting JSON of events")
+			return "", fmt.Errorf("Error when outputting JSON of events: %w", err)
 		}
 	} else {
 		// There is no handler for corev1.EventList in the table generator
@@ -185,7 +196,7 @@ func PrintEventList(eventList *corev1.EventList, context string, output string, 
 		convertType(eventList, &printList)
 		table, err := vars.TableGenerator.GenerateTable(&printList, printers.GenerateOptions{})
 		if err != nil {
-			klog.V(3).ErrorS(err, "Error when generating table output of events")
+			return "", fmt.Errorf("Error when generating table output of events: %w", err)
 		}
 
 		if table.ColumnDefinitions[0].Name == "Last Seen" {
@@ -204,9 +215,10 @@ func PrintEventList(eventList *corev1.EventList, context string, output string, 
 		}
 
 		cliPrinter = cliprint.NewTablePrinter(cliprint.PrintOptions{})
-		err = cliPrinter.PrintObj(table, os.Stdout)
+		err = cliPrinter.PrintObj(table, &w)
 		if err != nil {
-			klog.V(3).ErrorS(err, "Error when outputting table of events")
+			return "", fmt.Errorf("Error when outputting table of events: %w", err)
 		}
 	}
+	return w.String(), nil
 }

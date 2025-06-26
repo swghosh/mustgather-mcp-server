@@ -31,25 +31,29 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-func describeNode(currentContextPath string, namespace string, args []string) {
+func describeNode(currentContextPath string, namespace string, args []string) (string, error) {
 	resourceDir := currentContextPath + "/cluster-scoped-resources/core/nodes"
-	resourcesFiles, _ := ioutil.ReadDir(resourceDir)
+	resourcesFiles, err := ioutil.ReadDir(resourceDir)
+	if err != nil {
+		return "", err
+	}
+	var output string
 	for _, f := range resourcesFiles {
 		resourceYamlPath := resourceDir + "/" + f.Name()
 		_file, _ := ioutil.ReadFile(resourceYamlPath)
 		_Node := corev1.Node{}
 		if err := yaml.Unmarshal(_file, &_Node); err != nil {
-			fmt.Fprintln(os.Stderr, "Error when trying to unmarshal file: "+resourceYamlPath)
-			os.Exit(1)
+			return "", fmt.Errorf("Error when trying to unmarshal file: " + resourceYamlPath)
 		}
 		if len(args) > 0 && helpers.StringInSlice(_Node.GetName(), args) {
 			fake := fake.NewSimpleClientset(&_Node)
 			c := &types.DescribeClient{Namespace: namespace, Interface: fake}
 			d := desc.NodeDescriber{c}
 			out, _ := d.Describe(namespace, _Node.GetName(), desc.DescriberSettings{ShowEvents: false})
-			fmt.Printf(out)
+			output += out
 		}
 	}
+	return output, nil
 }
 
 var Node = &cobra.Command{
@@ -57,6 +61,11 @@ var Node = &cobra.Command{
 	Aliases: []string{"nodes"},
 	Hidden:  true,
 	Run: func(cmd *cobra.Command, args []string) {
-		describeNode(vars.MustGatherRootPath, vars.Namespace, args)
+		output, err := describeNode(vars.MustGatherRootPath, vars.Namespace, args)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		fmt.Print(output)
 	},
 }

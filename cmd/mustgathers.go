@@ -30,20 +30,12 @@ var GetMustGather = &cobra.Command{
 	Aliases: []string{"ls", "list"},
 	Short:   "List must-gathers saved in omc config file.",
 	Run: func(cmd *cobra.Command, args []string) {
-		file, _ := ioutil.ReadFile(viper.ConfigFileUsed())
-		omcConfigJson := types.Config{}
-		_ = json.Unmarshal([]byte(file), &omcConfigJson)
-
-		var data [][]string
-		var emptyData [][]string
-		headers := []string{"current", "id", "path", "namespace"}
-		var mg []types.Context
-		mg = omcConfigJson.Contexts
-		for _, context := range mg {
-			_list := []string{context.Current, context.Id, context.Path, context.Project}
-			data = append(data, _list)
+		headers, data, err := getMustGather()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
 		}
-		if reflect.DeepEqual(data, emptyData) {
+		if reflect.DeepEqual(data, [][]string{}) {
 			fmt.Fprintln(os.Stderr, "There are no must-gather resources defined.")
 			os.Exit(1)
 		} else {
@@ -52,10 +44,24 @@ var GetMustGather = &cobra.Command{
 	},
 }
 
-func init() {
+func getMustGather() ([]string, [][]string, error) {
+	file, err := ioutil.ReadFile(viper.ConfigFileUsed())
+	if err != nil {
+		return nil, nil, err
+	}
+	omcConfigJson := types.Config{}
+	err = json.Unmarshal([]byte(file), &omcConfigJson)
+	if err != nil {
+		return nil, nil, err
+	}
 
-	MustGather.AddCommand(
-		GetMustGather,
-		DeleteCmd,
-	)
+	var data [][]string
+	headers := []string{"current", "id", "path", "namespace"}
+	var mg []types.Context
+	mg = omcConfigJson.Contexts
+	for _, context := range mg {
+		_list := []string{context.Current, context.Id, context.Path, context.Project}
+		data = append(data, _list)
+	}
+	return headers, data, nil
 }

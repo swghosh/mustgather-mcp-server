@@ -33,7 +33,24 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-func extractIgnitionConfigStorage(ignConfig ign3types.Config, extractedMachineConfigPath string) {
+func extract(machineconfigPath, extractedMachineConfigPath string) error {
+	_file, err := os.ReadFile(machineconfigPath)
+	if err != nil {
+		return err
+	}
+	machineConfig := mcfgv1.MachineConfig{}
+	if err := yaml.Unmarshal([]byte(_file), &machineConfig); err != nil {
+		return fmt.Errorf("Error when trying to unmarshal file: " + machineconfigPath)
+	}
+	ignConfig, err := ctrlcommon.ParseAndConvertConfig(machineConfig.Spec.Config.Raw)
+	if err != nil {
+		return err
+	}
+	_ = os.Mkdir(extractedMachineConfigPath, os.ModePerm)
+	return extractIgnitionConfigStorage(ignConfig, extractedMachineConfigPath)
+}
+
+func extractIgnitionConfigStorage(ignConfig ign3types.Config, extractedMachineConfigPath string) error {
 	ignitionStorageFilesPath := extractedMachineConfigPath + "/storage/files"
 	for _, f := range ignConfig.Storage.Files {
 		lastInd := strings.LastIndex(f.Path, "/")
@@ -42,18 +59,18 @@ func extractIgnitionConfigStorage(ignConfig ign3types.Config, extractedMachineCo
 		if f.Contents.Source != nil {
 			contents, err := dataurl.DecodeString(*f.Contents.Source)
 			if err != nil {
-				fmt.Fprintln(os.Stderr, err)
+				return err
 			}
 			if f.Contents.Compression != nil && *f.Contents.Compression == "gzip" {
 				reader := bytes.NewReader([]byte(contents.Data))
 				gzreader, e1 := gzip.NewReader(reader)
 				if e1 != nil {
-					fmt.Fprintln(os.Stderr, e1)
+					return e1
 				}
 
 				output, e2 := io.ReadAll(gzreader)
 				if e2 != nil {
-					fmt.Fprintln(os.Stderr, e2)
+					return e2
 				}
 
 				result := string(output)
@@ -103,6 +120,7 @@ func extractIgnitionConfigStorage(ignConfig ign3types.Config, extractedMachineCo
 		//os.WriteFile(ignitionPasswdFilesPath+"users/"+f.Name, []byte(keys), 0644)
 		//fmt.Println(ignitionPasswdFilesPath + "users/" + f.Name)
 	}
+	return nil
 }
 
 var Extract = &cobra.Command{
@@ -113,18 +131,10 @@ var Extract = &cobra.Command{
 			os.Exit(1)
 		}
 		machineconfigYamlPath := vars.MustGatherRootPath + "/cluster-scoped-resources/machineconfiguration.openshift.io/machineconfigs/" + args[0] + ".yaml"
-		_file, err := os.ReadFile(machineconfigYamlPath)
-		if err != nil {
+		extractedMachineConfigPath := vars.MustGatherRootPath + "/extracted-machine-configs/" + args[0]
+		if err := extract(machineconfigYamlPath, extractedMachineConfigPath); err != nil {
 			fmt.Fprintln(os.Stderr, err)
-		}
-		machineConfig := mcfgv1.MachineConfig{}
-		if err := yaml.Unmarshal([]byte(_file), &machineConfig); err != nil {
-			fmt.Fprintln(os.Stderr, "Error when trying to unmarshal file: "+machineconfigYamlPath)
 			os.Exit(1)
 		}
-		ignConfig, err := ctrlcommon.ParseAndConvertConfig(machineConfig.Spec.Config.Raw)
-		extractedMachineConfigPath := vars.MustGatherRootPath + "/extracted-machine-configs/" + machineConfig.Name
-		_ = os.Mkdir(extractedMachineConfigPath, os.ModePerm)
-		extractIgnitionConfigStorage(ignConfig, extractedMachineConfigPath)
 	},
 }

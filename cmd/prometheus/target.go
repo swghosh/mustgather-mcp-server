@@ -35,31 +35,47 @@ var TargetSubCmd = &cobra.Command{
 	Aliases: []string{"targets"},
 	Short:   "Retrieve the targets (and their status) scraped by Prometheus.",
 	Run: func(cmd *cobra.Command, args []string) {
-		monitoringExist, _ := helpers.Exists(vars.MustGatherRootPath + "/monitoring")
-		if !monitoringExist {
-			fmt.Fprintln(os.Stderr, "Path '"+vars.MustGatherRootPath+"/monitoring' does not exist.")
-			os.Exit(1)
-		}
-		alertsFilePath := vars.MustGatherRootPath + "/monitoring/prometheus/" + PrometheusInstance + "/active-targets.json"
-		alertsFilePathExist, _ := helpers.Exists(alertsFilePath)
-		if !alertsFilePathExist {
-			fmt.Fprintln(os.Stderr, "Prometheus targets not found in must-gather.")
-			os.Exit(1)
-		}
-		targets := TargetData{}
-		file, _ := os.ReadFile(alertsFilePath)
-		err := json.Unmarshal([]byte(file), &targets)
+		headers, data, err := targets()
 		if err != nil {
-			fmt.Println(err)
-		}
-		headers := []string{"TARGET", "SCRAPE URL", "HEALTH", "LAST ERROR"}
-		var data [][]string
-		for _, target := range targets.Data.ActiveTargets {
-			row := []string{target.DiscoveredLabels["__meta_kubernetes_endpoint_address_target_name"], target.ScrapeURL, string(target.Health), target.LastError}
-			data = append(data, row)
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
 		}
 		helpers.PrintTable(headers, data)
 	},
+}
+
+func targets() ([]string, [][]string, error) {
+	monitoringExist, err := helpers.Exists(vars.MustGatherRootPath + "/monitoring")
+	if err != nil {
+		return nil, nil, err
+	}
+	if !monitoringExist {
+		return nil, nil, fmt.Errorf("Path '" + vars.MustGatherRootPath + "/monitoring' does not exist.")
+	}
+	alertsFilePath := vars.MustGatherRootPath + "/monitoring/prometheus/" + PrometheusInstance + "/active-targets.json"
+	alertsFilePathExist, err := helpers.Exists(alertsFilePath)
+	if err != nil {
+		return nil, nil, err
+	}
+	if !alertsFilePathExist {
+		return nil, nil, fmt.Errorf("Prometheus targets not found in must-gather.")
+	}
+	targets := TargetData{}
+	file, err := os.ReadFile(alertsFilePath)
+	if err != nil {
+		return nil, nil, err
+	}
+	err = json.Unmarshal([]byte(file), &targets)
+	if err != nil {
+		return nil, nil, err
+	}
+	headers := []string{"TARGET", "SCRAPE URL", "HEALTH", "LAST ERROR"}
+	var data [][]string
+	for _, target := range targets.Data.ActiveTargets {
+		row := []string{target.DiscoveredLabels["__meta_kubernetes_endpoint_address_target_name"], target.ScrapeURL, string(target.Health), target.LastError}
+		data = append(data, row)
+	}
+	return headers, data, nil
 }
 
 func init() {

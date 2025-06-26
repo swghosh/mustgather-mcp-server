@@ -30,62 +30,56 @@ var DesiredVersion string
 
 const omcDarwinFile = "omc_Darwin"
 
-func upgradeBinary(repoName string) {
+func upgrade(repoName string, desiredVersion string) (string, error) {
 	ex, err := os.Executable()
 	if err != nil {
 		panic(err)
 	}
 	omcExecutablePath := filepath.Dir(ex) + "/omc"
 	operatingSystem := runtime.GOOS
-	if DesiredVersion == "" {
-		checkReleases(repoName)
-		os.Exit(0)
+	if desiredVersion == "" {
+		return checkReleases(repoName)
 	}
-	if DesiredVersion != "latest" && string(DesiredVersion[0]) != "v" {
-		fmt.Fprintln(os.Stderr, "error: --to must be a semantic version (e.g. v4.0.5): No Major.Minor.Patch elements found")
-		os.Exit(1)
+	if desiredVersion != "latest" && string(desiredVersion[0]) != "v" {
+		return "", fmt.Errorf("error: --to must be a semantic version (e.g. v4.0.5): No Major.Minor.Patch elements found")
 	}
-	if DesiredVersion != "latest" {
-		desiredReleaseVer := semver.New(DesiredVersion[1:])
+	if desiredVersion != "latest" {
+		desiredReleaseVer := semver.New(desiredVersion[1:])
 		if vars.OMCVersionTag == "" {
 			vars.OMCVersionTag = "v2.0.1"
 		}
 		currentVer := semver.New(vars.OMCVersionTag[1:])
 		if desiredReleaseVer.LessThan(*currentVer) {
-			fmt.Fprintln(os.Stderr, "error: The update "+DesiredVersion+" is not one of the available updates (check them by running \"omc upgrade\")")
-			os.Exit(1)
+			return "", fmt.Errorf("error: The update " + desiredVersion + " is not one of the available updates (check them by running \"omc upgrade\")")
 		}
 	}
 	switch operatingSystem {
 	case "windows":
-		fmt.Println("This command is not available for windows.")
-		fmt.Println("Open an issue on the GitHub repo https://github.com/gmeghnag/omc if you want it impemented.")
+		return "This command is not available for windows.\nOpen an issue on the GitHub repo https://github.com/gmeghnag/omc if you want it impemented.", nil
 	case "darwin":
 		arch := runtime.GOARCH
 		omcBinFile := omcDarwinFile + "_" + arch
-		omcUrl := "https://github.com/" + repoName + "/releases/download/" + DesiredVersion + "/" + omcBinFile
-		if DesiredVersion == "latest" {
-			omcUrl = "https://github.com/" + repoName + "/releases/" + DesiredVersion + "/download/" + omcBinFile
+		omcUrl := "https://github.com/" + repoName + "/releases/download/" + desiredVersion + "/" + omcBinFile
+		if desiredVersion == "latest" {
+			omcUrl = "https://github.com/" + repoName + "/releases/" + desiredVersion + "/download/" + omcBinFile
 		}
-		err = updateOmcExecutable(omcExecutablePath, omcUrl, DesiredVersion)
+		err = updateOmcExecutable(omcExecutablePath, omcUrl, desiredVersion)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
+			return "", err
 		}
 	case "linux":
-		omcUrl := "https://github.com/" + repoName + "/releases/download/" + DesiredVersion + "/omc_Linux_x86_64"
-		if DesiredVersion == "latest" {
-			omcUrl = "https://github.com/" + repoName + "/releases/" + DesiredVersion + "/download/omc_Linux_x86_64"
+		omcUrl := "https://github.com/" + repoName + "/releases/download/" + desiredVersion + "/omc_Linux_x86_64"
+		if desiredVersion == "latest" {
+			omcUrl = "https://github.com/" + repoName + "/releases/" + desiredVersion + "/download/omc_Linux_x86_64"
 		}
-		err = updateOmcExecutable(omcExecutablePath, omcUrl, DesiredVersion)
+		err = updateOmcExecutable(omcExecutablePath, omcUrl, desiredVersion)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
+			return "", err
 		}
 	default:
-		fmt.Println("This command is not available for the OS you are using.")
-		fmt.Println("Open an issue on the GitHub repo https://github.com/gmeghnag/omc if you want it impemented.")
+		return "This command is not available for the OS you are using.\nOpen an issue on the GitHub repo https://github.com/gmeghnag/omc if you want it impemented.", nil
 	}
+	return "", nil
 }
 
 // etcdCmd represents the etcd command
@@ -93,7 +87,12 @@ var Upgrade = &cobra.Command{
 	Use:   "upgrade",
 	Short: "Upgrade omc.",
 	Run: func(cmd *cobra.Command, args []string) {
-		upgradeBinary("gmeghnag/omc")
+		output, err := upgrade("gmeghnag/omc", DesiredVersion)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		fmt.Print(output)
 	},
 }
 

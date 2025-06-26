@@ -32,19 +32,25 @@ import (
 
 var DeleteAll bool
 
-func DeleteContext(path string, omcConfigFile string, idFlag string) {
+func DeleteContext(path string, omcConfigFile string, idFlag string) error {
 	// read json omcConfigFile
-
 	if DeleteAll {
-		file, _ := json.MarshalIndent(types.Config{}, "", " ")
-		_ = ioutil.WriteFile(omcConfigFile, file, 0644)
-		os.Exit(0)
+		file, err := json.MarshalIndent(types.Config{}, "", " ")
+		if err != nil {
+			return err
+		}
+		return ioutil.WriteFile(omcConfigFile, file, 0644)
 	}
 
-	file, _ := ioutil.ReadFile(omcConfigFile)
+	file, err := ioutil.ReadFile(omcConfigFile)
+	if err != nil {
+		return err
+	}
 	omcConfigJson := types.Config{}
-	_ = json.Unmarshal([]byte(file), &omcConfigJson)
-
+	err = json.Unmarshal([]byte(file), &omcConfigJson)
+	if err != nil {
+		return err
+	}
 	config := types.Config{}
 
 	var contexts []types.Context
@@ -59,12 +65,11 @@ func DeleteContext(path string, omcConfigFile string, idFlag string) {
 	}
 
 	config.Contexts = NewContexts
-	file, err := json.MarshalIndent(config, "", " ")
+	file, err = json.MarshalIndent(config, "", " ")
 	if err != nil {
-		log.Fatal("Json Marshal failed")
+		return err
 	}
-	_ = ioutil.WriteFile(omcConfigFile, file, 0644)
-
+	return ioutil.WriteFile(omcConfigFile, file, 0644)
 }
 
 // useCmd represents the use command
@@ -85,7 +90,9 @@ var DeleteCmd = &cobra.Command{
 			}
 		}
 
-		DeleteContext(path, viper.ConfigFileUsed(), idFlag)
+		if err := DeleteContext(path, viper.ConfigFileUsed(), idFlag); err != nil {
+			log.Fatal(err)
+		}
 	},
 }
 

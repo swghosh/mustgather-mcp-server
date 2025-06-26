@@ -52,7 +52,12 @@ var Inspect = &cobra.Command{
 		if len(args) == 1 {
 			resourceTypes = strings.Split(strings.ToLower(args[0]), ",")
 		}
-		inspectResources(resourceTypes)
+		output, err := inspectResources(resourceTypes)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		fmt.Print(output)
 	},
 }
 
@@ -178,7 +183,7 @@ func printParseFailure(w io.Writer, f string) {
 	}
 }
 
-func inspectResources(resourceTypes []string) {
+func inspectResources(resourceTypes []string) (string, error) {
 	var data [][]string
 	var resources []*CertDetail
 	_headers := []string{"namespace", "name", "kind", "age", "certtype", "subject", "notbefore", "notafter", "validfor", "issuer", "groups", "usages"}
@@ -188,19 +193,31 @@ func inspectResources(resourceTypes []string) {
 			var configmaps []*unstructured.Unstructured
 			GetConfigMaps(vars.MustGatherRootPath, vars.Namespace, "", vars.AllNamespaceBoolVar, &configmaps)
 			for _, r := range configmaps {
-				resources = append(resources, inspectConfigMap(os.Stdout, r)...)
+				certs, err := inspectConfigMap(os.Stdout, r)
+				if err != nil {
+					return "", err
+				}
+				resources = append(resources, certs...)
 			}
 		case "secret", "secrets":
 			var secrets []*unstructured.Unstructured
 			GetSecrets(vars.MustGatherRootPath, vars.Namespace, "", vars.AllNamespaceBoolVar, &secrets)
 			for _, r := range secrets {
-				resources = append(resources, inspectSecret(os.Stdout, r)...)
+				certs, err := inspectSecret(os.Stdout, r)
+				if err != nil {
+					return "", err
+				}
+				resources = append(resources, certs...)
 			}
 		case "csr", "certificatesigningrequest", "certificatesigningrequests":
 			var csrs []unstructured.Unstructured
 			GetCertificateSigningRequests(vars.MustGatherRootPath, vars.Namespace, "", vars.AllNamespaceBoolVar, &csrs)
 			for _, r := range csrs {
-				resources = append(resources, inspectCSR(os.Stdout, &r)...)
+				certs, err := inspectCSR(os.Stdout, &r)
+				if err != nil {
+					return "", err
+				}
+				resources = append(resources, certs...)
 			}
 		}
 	}
@@ -222,15 +239,17 @@ func inspectResources(resourceTypes []string) {
 		}
 		data = helpers.GetData(data, vars.AllNamespaceBoolVar, false, "", vars.OutputStringVar, 8, _list)
 	}
-	helpers.PrintOutput(resources, 8, vars.OutputStringVar, "", vars.AllNamespaceBoolVar, false, _headers, data, "")
+	var output strings.Builder
+	helpers.PrintOutput(resources, 8, vars.OutputStringVar, "", vars.AllNamespaceBoolVar, false, _headers, data, &output)
+	return output.String(), nil
 }
 
-func inspectConfigMap(w io.Writer, obj *unstructured.Unstructured) []*CertDetail {
+func inspectConfigMap(w io.Writer, obj *unstructured.Unstructured) ([]*CertDetail, error) {
 	resourceString := fmt.Sprintf("configmaps/%s[%s]", obj.GetName(), obj.GetNamespace())
 	var cm corev1.ConfigMap
 	err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, &cm)
 	if err != nil {
-		fmt.Fprintf(w, objConvertionFailureMsg, obj.GetKind(), err)
+		return nil, fmt.Errorf(objConvertionFailureMsg, obj.GetKind(), err)
 	}
 	var certdetails []*CertDetail
 	for _, caKeyName := range getSupportedCaKeyNames() {
@@ -256,15 +275,15 @@ func inspectConfigMap(w io.Writer, obj *unstructured.Unstructured) []*CertDetail
 	if listNonCerts && len(certdetails) == 0 {
 		certdetails = append(certdetails, NewCertDetail(obj, "N/A", nil))
 	}
-	return certdetails
+	return certdetails, nil
 }
 
-func inspectSecret(w io.Writer, obj *unstructured.Unstructured) []*CertDetail {
+func inspectSecret(w io.Writer, obj *unstructured.Unstructured) ([]*CertDetail, error) {
 	resourceString := fmt.Sprintf("secret/%s[%s]", obj.GetName(), obj.GetNamespace())
 	var secret corev1.Secret
 	err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, &secret)
 	if err != nil {
-		fmt.Fprintf(w, objConvertionFailureMsg, obj.GetKind(), err)
+		return nil, fmt.Errorf(objConvertionFailureMsg, obj.GetKind(), err)
 	}
 	tlsCrt, isTLS := secret.Data["tls.crt"]
 	var certdetails []*CertDetail
@@ -311,16 +330,16 @@ func inspectSecret(w io.Writer, obj *unstructured.Unstructured) []*CertDetail {
 	if !isTLS && !isCA {
 		printParseFailure(w, fmt.Sprintf("%s NOT a tls secret or token secret\n", resourceString))
 	}
-	return certdetails
+	return certdetails, nil
 }
 
-func inspectCSR(w io.Writer, obj *unstructured.Unstructured) []*CertDetail {
+func inspectCSR(w io.Writer, obj *unstructured.Unstructured) ([]*CertDetail, error) {
 	var certdetails []*CertDetail
 	resourceString := fmt.Sprintf("secret/%s[%s]", obj.GetName(), obj.GetNamespace())
 	var csr certificatesv1.CertificateSigningRequest
 	err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, &csr)
 	if err != nil {
-		fmt.Fprintf(w, objConvertionFailureMsg, obj.GetKind(), err)
+		return nil, fmt.Errorf(objConvertionFailureMsg, obj.GetKind(), err)
 	}
 	if len(csr.Status.Certificate) == 0 {
 		printParseFailure(w, fmt.Sprintf("%s NOT SIGNED\n", resourceString))
@@ -339,5 +358,5 @@ func inspectCSR(w io.Writer, obj *unstructured.Unstructured) []*CertDetail {
 	for _, cert := range certificates {
 		certdetails = append(certdetails, NewCertDetail(obj, "ca-bundle", cert))
 	}
-	return certdetails
+	return certdetails, nil
 }

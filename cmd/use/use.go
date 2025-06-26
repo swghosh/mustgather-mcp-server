@@ -35,6 +35,55 @@ import (
 
 var singleNamespaceInMustGather bool
 
+func use(path, idFlag, omcConfigFile string) (string, error) {
+	if path == "" && idFlag == "" {
+		return MustGatherInfo()
+	}
+
+	var err error
+	fileType := ""
+	isCompressedFile := false
+	if path != "" {
+		if IsRemoteFile(path) {
+			path, err = DownloadFile(path)
+			if err != nil {
+				return "", err
+			}
+		} else {
+			if strings.HasSuffix(path, "/") {
+				path = strings.TrimRight(path, "/")
+			}
+			if strings.HasSuffix(path, "\\") {
+				path = strings.TrimRight(path, "\\")
+			}
+			path, _ = filepath.Abs(path)
+		}
+
+		isDir, _ := helpers.IsDirectory(path)
+		if !isDir {
+			isCompressedFile, fileType, _ = IsCompressedFile(path)
+			if !isCompressedFile {
+				return "", fmt.Errorf("Error: " + path + " is not a directory not a compressed file.")
+			}
+		}
+	}
+
+	if isCompressedFile {
+		outputpath := filepath.Dir(path)
+		rootfile, err := DecompressFile(path, outputpath, fileType)
+		if err != nil {
+			return "", fmt.Errorf("Error: decompressing " + path + " in " + outputpath + ": " + err.Error())
+		}
+		path = rootfile
+	}
+
+	err = useContext(path, omcConfigFile, idFlag)
+	if err != nil {
+		return "", err
+	}
+	return MustGatherInfo()
+}
+
 func useContext(path string, omcConfigFile string, idFlag string) error {
 	if path != "" {
 		_path, err := findMustGatherIn(path)
@@ -146,37 +195,48 @@ func findMustGatherIn(path string) (string, error) {
 	}
 	if !timeStampFound && !resourcesFolderFound {
 		// Case: "path" is an empty directory
-		return path, fmt.Errorf("wrong must-gather file composition for %v", path)
+		return "", fmt.Errorf("wrong must-gather file composition for %v", path)
 	}
 	return findMustGatherIn(path + "/" + dirName)
 }
 
-func MustGatherInfo() {
-	fmt.Printf("Must-Gather    : %s\n", vars.MustGatherRootPath)
+func MustGatherInfo() (string, error) {
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("Must-Gather    : %s\n", vars.MustGatherRootPath))
 	if singleNamespaceInMustGather {
-		fmt.Printf("Project        : %s (single project)\n", vars.Namespace)
+		output.WriteString(fmt.Sprintf("Project        : %s (single project)\n", vars.Namespace))
 	} else {
-		fmt.Printf("Project        : %s\n", vars.Namespace)
+		output.WriteString(fmt.Sprintf("Project        : %s\n", vars.Namespace))
 	}
-	InfrastrctureFilePathExists, _ := helpers.Exists(vars.MustGatherRootPath + "/cluster-scoped-resources/config.openshift.io/infrastructures.yaml")
+	InfrastrctureFilePathExists, err := helpers.Exists(vars.MustGatherRootPath + "/cluster-scoped-resources/config.openshift.io/infrastructures.yaml")
+	if err != nil {
+		return "", err
+	}
 	if InfrastrctureFilePathExists {
-		_file, _ := os.ReadFile(vars.MustGatherRootPath + "/cluster-scoped-resources/config.openshift.io/infrastructures.yaml")
+		_file, err := os.ReadFile(vars.MustGatherRootPath + "/cluster-scoped-resources/config.openshift.io/infrastructures.yaml")
+		if err != nil {
+			return "", err
+		}
 		infrastructureList := configv1.InfrastructureList{}
 		if err := yaml.Unmarshal([]byte(_file), &infrastructureList); err != nil {
-			fmt.Println("Error when trying to unmarshal file: " + vars.MustGatherRootPath + "/cluster-scoped-resources/config.openshift.io/infrastructures.yaml")
-			os.Exit(1)
+			return "", fmt.Errorf("Error when trying to unmarshal file: " + vars.MustGatherRootPath + "/cluster-scoped-resources/config.openshift.io/infrastructures.yaml")
 		} else {
-			fmt.Printf("ApiServerURL   : %s\n", infrastructureList.Items[0].Status.APIServerURL)
-			fmt.Printf("Platform       : %s\n", infrastructureList.Items[0].Status.PlatformStatus.Type)
+			output.WriteString(fmt.Sprintf("ApiServerURL   : %s\n", infrastructureList.Items[0].Status.APIServerURL))
+			output.WriteString(fmt.Sprintf("Platform       : %s\n", infrastructureList.Items[0].Status.PlatformStatus.Type))
 		}
 	}
-	clusterversionFilePathExists, _ := helpers.Exists(vars.MustGatherRootPath + "/cluster-scoped-resources/config.openshift.io/clusterversions/version.yaml")
+	clusterversionFilePathExists, err := helpers.Exists(vars.MustGatherRootPath + "/cluster-scoped-resources/config.openshift.io/clusterversions/version.yaml")
+	if err != nil {
+		return "", err
+	}
 	if clusterversionFilePathExists {
-		_file, _ := os.ReadFile(vars.MustGatherRootPath + "/cluster-scoped-resources/config.openshift.io/clusterversions/version.yaml")
+		_file, err := os.ReadFile(vars.MustGatherRootPath + "/cluster-scoped-resources/config.openshift.io/clusterversions/version.yaml")
+		if err != nil {
+			return "", err
+		}
 		ClusterVersion := configv1.ClusterVersion{}
 		if err := yaml.Unmarshal([]byte(_file), &ClusterVersion); err != nil {
-			fmt.Println("Error when trying to unmarshal file: " + vars.MustGatherRootPath + "/cluster-scoped-resources/config.openshift.io/clusterversions/version.yaml")
-			os.Exit(1)
+			return "", fmt.Errorf("Error when trying to unmarshal file: " + vars.MustGatherRootPath + "/cluster-scoped-resources/config.openshift.io/clusterversions/version.yaml")
 		} else {
 			clusterversion := ""
 			versionHistory := ClusterVersion.Status.History
@@ -187,25 +247,25 @@ func MustGatherInfo() {
 				}
 			}
 
-			fmt.Printf("ClusterID      : %s\n", ClusterVersion.Spec.ClusterID)
-			fmt.Printf("ClusterVersion : %s\n", clusterversion)
+			output.WriteString(fmt.Sprintf("ClusterID      : %s\n", ClusterVersion.Spec.ClusterID))
+			output.WriteString(fmt.Sprintf("ClusterVersion : %s\n", clusterversion))
 		}
 	}
 	mustGatherSplitPath := strings.Split(vars.MustGatherRootPath, "/")
 	mustGatherParentPath := strings.Join(mustGatherSplitPath[0:(len(mustGatherSplitPath)-1)], "/")
 	clientVersion := extractClientVersion(mustGatherParentPath + "/must-gather.logs")
 	if clientVersion != "" {
-		fmt.Printf("ClientVersion  : %s\n", clientVersion)
+		output.WriteString(fmt.Sprintf("ClientVersion  : %s\n", clientVersion))
 	}
 	parts := strings.Split(vars.MustGatherRootPath, "/")
 	if len(parts) > 0 {
 		lastPart := parts[len(parts)-1]
 		if strings.Contains(lastPart, "-sha256") {
 			mustGatherImage := strings.Split(lastPart, "-sha256")[0]
-			fmt.Printf("Image          : %s\n", mustGatherImage)
+			output.WriteString(fmt.Sprintf("Image          : %s\n", mustGatherImage))
 		}
 	}
-
+	return output.String(), nil
 }
 
 // useCmd represents the use command
@@ -217,63 +277,21 @@ var UseCmd = &cobra.Command{
 	If the must-gather does not exists it will be added as default to the managed must-gathers.
 	Use the command 'omc get mg' to see them all.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		var err error
 		idFlag, _ := cmd.Flags().GetString("id")
-		path := ""
-		fileType := ""
-		isCompressedFile := false
-		if len(args) == 0 && idFlag == "" {
-			MustGatherInfo()
-			os.Exit(0)
-		}
+		var path string
 		if len(args) > 1 {
 			fmt.Fprintln(os.Stderr, "Expect one argument, found: ", len(args))
 			os.Exit(1)
 		}
 		if len(args) == 1 {
 			path = args[0]
-			if IsRemoteFile(path) {
-				path, err = DownloadFile(path)
-				if err != nil {
-					fmt.Fprintln(os.Stderr, err)
-					os.Exit(1)
-				}
-			} else {
-				if strings.HasSuffix(path, "/") {
-					path = strings.TrimRight(path, "/")
-				}
-				if strings.HasSuffix(path, "\\") {
-					path = strings.TrimRight(path, "\\")
-				}
-				path, _ = filepath.Abs(path)
-			}
-
-			isDir, _ := helpers.IsDirectory(path)
-			if !isDir {
-				isCompressedFile, fileType, _ = IsCompressedFile(path)
-				if !isCompressedFile {
-					fmt.Fprintln(os.Stderr, "Error: "+path+" is not a directory not a compressed file.")
-					os.Exit(1)
-				}
-			}
 		}
-
-		if isCompressedFile {
-			outputpath := filepath.Dir(path)
-			rootfile, err := DecompressFile(path, outputpath, fileType)
-			if err != nil {
-				fmt.Fprintln(os.Stderr, "Error: decompressing "+path+" in "+outputpath+": "+err.Error())
-				os.Exit(1)
-			}
-			path = rootfile
-		}
-
-		err = useContext(path, viper.ConfigFileUsed(), idFlag)
+		output, err := use(path, idFlag, viper.ConfigFileUsed())
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
-		MustGatherInfo()
+		fmt.Print(output)
 	},
 }
 

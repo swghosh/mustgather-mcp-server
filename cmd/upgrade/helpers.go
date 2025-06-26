@@ -90,39 +90,41 @@ func updateOmcExecutable(omcExecutablePath string, url string, desiredVersion st
 	return nil
 }
 
-func checkReleases(repoName string) {
+func checkReleases(repoName string) (string, error) {
 	resp, err := http.Get("https://api.github.com/repos/" + repoName + "/releases")
 	if err != nil {
-		panic(err)
+		return "", err
 	}
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body) // response body is []byte
 	if err != nil {
-		panic(err)
+		return "", err
 	}
 	var omcReleases Releases
 	err = json.Unmarshal(body, &omcReleases)
 	if err != nil {
-		panic(err)
+		return "", err
 	}
 
 	if vars.OMCVersionTag == "" {
 		vars.OMCVersionTag = "v2.0.1"
 	}
-	fmt.Println("omc version is " + vars.OMCVersionTag)
-	fmt.Println("")
-	fmt.Println("Execute: `omc upgrade --to=latest` to upgrade to the latest available version.")
-	fmt.Println("")
-	fmt.Println("Available updates:")
-	fmt.Println("")
+	var output string
+	output += fmt.Sprintln("omc version is " + vars.OMCVersionTag)
+	output += fmt.Sprintln("")
+	output += fmt.Sprintln("Execute: `omc upgrade --to=latest` to upgrade to the latest available version.")
+	output += fmt.Sprintln("")
+	output += fmt.Sprintln("Available updates:")
+	output += fmt.Sprintln("")
 	currentVer := semver.New(vars.OMCVersionTag[1:])
 	for _, release := range omcReleases {
 		availableRelease := release["tag_name"].(string)
 		availableReleaseVer := semver.New(availableRelease[1:])
 		if currentVer.LessThan(*availableReleaseVer) {
-			fmt.Println(availableRelease)
+			output += fmt.Sprintln(availableRelease)
 		}
 	}
+	return output, nil
 }
 
 func CustomBytes(desiredVersion string, maxBytes int64, description ...string) *progressbar.ProgressBar {

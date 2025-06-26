@@ -17,6 +17,7 @@ package config
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os"
 
@@ -29,9 +30,10 @@ var test = false
 var ConfigCmd = &cobra.Command{
 	Use: "config",
 	Run: func(cmd *cobra.Command, args []string) {
-		SetConfig()
-		os.Exit(0)
-
+		if err := SetConfig(); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
 	},
 }
 
@@ -42,15 +44,20 @@ func init() {
 
 }
 
-func SetConfig() {
+func SetConfig() error {
 	home, _ := os.UserHomeDir()
-	file, _ := ioutil.ReadFile(home + "/.omc/omc.json")
+	file, err := ioutil.ReadFile(home + "/.omc/omc.json")
+	if err != nil {
+		return err
+	}
 	omcConfigJson := types.Config{}
 	_ = json.Unmarshal([]byte(file), &omcConfigJson)
 	omcConfigJson.UseLocalCRDs = vars.UseLocalCRDs
 	omcConfigJson.DiffCmd = vars.DiffCmd
 	omcConfigJson.DefaultProject = vars.DefaultProject
-	file, _ = json.MarshalIndent(omcConfigJson, "", " ")
-	_ = ioutil.WriteFile(home+"/.omc/omc.json", file, 0644)
-
+	file, err = json.MarshalIndent(omcConfigJson, "", " ")
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(home+"/.omc/omc.json", file, 0644)
 }

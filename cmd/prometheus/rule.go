@@ -31,7 +31,33 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-func GetAlertRules(resourcesNames []string, outputFlag string, groupsNames string, rulesStates string, alertsFilePath string) {
+func alertRules(resourcesNames []string, outputFlag, groupsNames, rulesStates string) (string, error) {
+	monitoringExist, err := helpers.Exists(vars.MustGatherRootPath + "/monitoring")
+	if err != nil {
+		return "", err
+	}
+	if !monitoringExist {
+		return "", fmt.Errorf("Path '" + vars.MustGatherRootPath + "/monitoring' does not exist.")
+	}
+	alertsFilePath := vars.MustGatherRootPath + "/monitoring/alerts.json"
+	alertsFilePathExist, err := helpers.Exists(alertsFilePath)
+	if err != nil {
+		return "", err
+	}
+	if !alertsFilePathExist {
+		alertsFilePath = vars.MustGatherRootPath + "/monitoring/prometheus/rules.json"
+		alertsFilePathExist, err = helpers.Exists(alertsFilePath)
+		if err != nil {
+			return "", err
+		}
+		if !alertsFilePathExist {
+			return "", fmt.Errorf("Prometheus rules not found in must-gather.")
+		}
+	}
+	return GetAlertRules(resourcesNames, outputFlag, groupsNames, rulesStates, alertsFilePath)
+}
+
+func GetAlertRules(resourcesNames []string, outputFlag string, groupsNames string, rulesStates string, alertsFilePath string) (string, error) {
 	_headers := []string{"group", "rule", "severity", "state", "age", "alerts", "active since"}
 	var data [][]string
 	var filteredRules []Rule
@@ -39,8 +65,7 @@ func GetAlertRules(resourcesNames []string, outputFlag string, groupsNames strin
 	var _Alerts alerts
 	_file, _ := ioutil.ReadFile(alertsFilePath)
 	if err := yaml.Unmarshal([]byte(_file), &_Alerts); err != nil {
-		fmt.Fprintln(os.Stderr, "Error when trying to unmarshal file "+alertsFilePath)
-		os.Exit(1)
+		return "", fmt.Errorf("Error when trying to unmarshal file " + alertsFilePath)
 	}
 	searchingGroups := []string{}
 	if groupsNames != "" {
@@ -83,8 +108,7 @@ func GetAlertRules(resourcesNames []string, outputFlag string, groupsNames strin
 			alertsList := []PromAlert{}
 			b, err := json.Marshal(alerts)
 			if err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				os.Exit(1)
+				return "", err
 			}
 			json.Unmarshal(b, &alertsList)
 			numAlerts := strconv.Itoa(len(alertsList))
@@ -120,32 +144,34 @@ func GetAlertRules(resourcesNames []string, outputFlag string, groupsNames strin
 	}
 
 	var headers []string
+	var output strings.Builder
 	if outputFlag == "" {
 		headers = _headers[1:]
 		if len(data) == 0 {
-			fmt.Println("No resources found.")
+			output.WriteString("No resources found.")
 		} else {
-			helpers.PrintTable(headers, data)
+			helpers.RenderTable(&output, headers, data)
 		}
 	}
 	if outputFlag == "wide" {
 		headers = _headers[0:]
 		if len(data) == 0 {
-			fmt.Println("No resources found.")
+			output.WriteString("No resources found.")
 		} else {
-			helpers.PrintTable(headers, data)
+			helpers.RenderTable(&output, headers, data)
 		}
 	}
 	if outputFlag == "yaml" {
 		filteredRulesList.Data = filteredRules
 		y, _ := yaml.Marshal(filteredRulesList)
-		fmt.Println(string(y))
+		output.Write(y)
 	}
 	if outputFlag == "json" {
 		filteredRulesList.Data = filteredRules
 		j, _ := json.Marshal(filteredRulesList)
-		fmt.Println(string(j))
+		output.Write(j)
 	}
+	return output.String(), nil
 }
 
 var RuleSubCmd = &cobra.Command{
@@ -153,23 +179,12 @@ var RuleSubCmd = &cobra.Command{
 	Aliases: []string{"rule", "rules", "alertrules"},
 	Short:   "Retrieve the alerting rules (and their status) configured in Prometheus.",
 	Run: func(cmd *cobra.Command, args []string) {
-		resourcesNames := args
-		monitoringExist, _ := helpers.Exists(vars.MustGatherRootPath + "/monitoring")
-		if !monitoringExist {
-			fmt.Fprintln(os.Stderr, "Path '"+vars.MustGatherRootPath+"/monitoring' does not exist.")
+		output, err := alertRules(args, vars.OutputStringVar, GroupName, RuleState)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
-		alertsFilePath := vars.MustGatherRootPath + "/monitoring/alerts.json"
-		alertsFilePathExist, _ := helpers.Exists(alertsFilePath)
-		if !alertsFilePathExist {
-			alertsFilePath = vars.MustGatherRootPath + "/monitoring/prometheus/rules.json"
-			alertsFilePathExist, _ := helpers.Exists(alertsFilePath)
-			if !alertsFilePathExist {
-				fmt.Fprintln(os.Stderr, "Prometheus rules not found in must-gather.")
-				os.Exit(1)
-			}
-		}
-		GetAlertRules(resourcesNames, vars.OutputStringVar, GroupName, RuleState, alertsFilePath)
+		fmt.Println(output)
 	},
 }
 

@@ -24,12 +24,14 @@ type epHealth struct {
 	Error  string `json:"error,omitempty"`
 }
 
-func EndpointStatus(etcdFolderPath string) {
-	_file, _ := ioutil.ReadFile(etcdFolderPath + "endpoint_status.json")
+func EndpointStatus(etcdFolderPath string) error {
+	_file, err := ioutil.ReadFile(etcdFolderPath + "endpoint_status.json")
+	if err != nil {
+		return err
+	}
 	var Endpoints []Endpoint
 	if err := json.Unmarshal([]byte(_file), &Endpoints); err != nil {
-		fmt.Fprintln(os.Stderr, "Error when trying to unmarshal file \""+etcdFolderPath+"endpoint_status.json\":", err.Error())
-		os.Exit(1)
+		return fmt.Errorf("Error when trying to unmarshal file \"" + etcdFolderPath + "endpoint_status.json\": " + err.Error())
 	}
 	var rows [][]string
 	var hdr = []string{"endpoint", "ID", "version", "db size/in use", "not used", "is leader", "is learner", "raft term",
@@ -53,14 +55,17 @@ func EndpointStatus(etcdFolderPath string) {
 	table.SetHeader(hdr)
 	table.AppendBulk(rows)
 	table.Render()
+	return nil
 }
 
-func EndpointHealth(etcdFolderPath string) {
-	_file, _ := ioutil.ReadFile(etcdFolderPath + "endpoint_health.json")
+func EndpointHealth(etcdFolderPath string) error {
+	_file, err := ioutil.ReadFile(etcdFolderPath + "endpoint_health.json")
+	if err != nil {
+		return err
+	}
 	var healthList []epHealth
 	if err := json.Unmarshal([]byte(_file), &healthList); err != nil {
-		fmt.Fprintln(os.Stderr, "Error when trying to unmarshal file \""+etcdFolderPath+"endpoint_status.json\":", err.Error())
-		os.Exit(1)
+		return fmt.Errorf("Error when trying to unmarshal file \"" + etcdFolderPath + "endpoint_status.json\": " + err.Error())
 	}
 	var rows [][]string
 	var hdr = []string{"endpoint", "health", "took", "error"}
@@ -76,4 +81,5 @@ func EndpointHealth(etcdFolderPath string) {
 	table.SetHeader(hdr)
 	table.AppendBulk(rows)
 	table.Render()
+	return nil
 }

@@ -30,23 +30,27 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-func describePod(currentContextPath string, defaultConfigNamespace string, args []string) {
+func describePod(currentContextPath string, defaultConfigNamespace string, args []string) (string, error) {
 	podResources := currentContextPath + "/namespaces/" + defaultConfigNamespace + "/core/pods.yaml"
 	PodList := corev1.PodList{}
-	_file := helpers.ReadYaml(podResources)
-	if err := yaml.Unmarshal(_file, &PodList); err != nil {
-		fmt.Fprintln(os.Stderr, "Error when trying to unmarshal file "+podResources)
-		os.Exit(1)
+	_file, err := os.ReadFile(podResources)
+	if err != nil {
+		return "", fmt.Errorf("error: file %s does not exist", podResources)
 	}
+	if err := yaml.Unmarshal(_file, &PodList); err != nil {
+		return "", fmt.Errorf("Error when trying to unmarshal file " + podResources)
+	}
+	var output string
 	for _, pod := range PodList.Items {
 		if len(args) == 0 || (len(args) > 0 && helpers.StringInSlice(pod.GetName(), args)) {
 			fake := fake.NewSimpleClientset(&pod)
 			c := &types.DescribeClient{Namespace: defaultConfigNamespace, Interface: fake}
 			d := describe.PodDescriber{c}
 			out, _ := d.Describe(defaultConfigNamespace, pod.GetName(), describe.DescriberSettings{ShowEvents: false})
-			fmt.Printf(out)
+			output += out
 		}
 	}
+	return output, nil
 }
 
 var Pod = &cobra.Command{
@@ -54,6 +58,11 @@ var Pod = &cobra.Command{
 	Aliases: []string{"po", "pods"},
 	Hidden:  true,
 	Run: func(cmd *cobra.Command, args []string) {
-		describePod(vars.MustGatherRootPath, vars.Namespace, args)
+		output, err := describePod(vars.MustGatherRootPath, vars.Namespace, args)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		fmt.Print(output)
 	},
 }

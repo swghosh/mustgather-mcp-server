@@ -28,16 +28,22 @@ import (
 
 // DescribeCmd represents the describe command
 var DescribeCmd = &cobra.Command{
-	Use: "describe",
+	Use:   "describe",
 	Short: "Show details of a specific resource or group of resources",
 	Run: func(cmd *cobra.Command, args []string) {
-		if len(args) == 0 {
-			cmd.Help()
-			os.Exit(0)
+		if err := describe(cmd, args); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
 		}
-		fmt.Fprintln(os.Stderr, "Invalid object type:", args[0])
-		os.Exit(1)
 	},
+}
+
+func describe(cmd *cobra.Command, args []string) error {
+	if len(args) == 0 {
+		cmd.Help()
+		return nil
+	}
+	return fmt.Errorf("Invalid object type: %s", args[0])
 }
 
 func init() {
