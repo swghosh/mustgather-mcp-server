@@ -18,11 +18,11 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 
 	"github.com/gmeghnag/omc/cmd/helpers"
+	"github.com/gmeghnag/omc/pkg/vfs"
 	"github.com/gmeghnag/omc/types"
 	"github.com/gmeghnag/omc/vars"
 
@@ -32,11 +32,11 @@ import (
 
 func projectDefault(omcConfigFile string, projDefault string) {
 	var namespaces []string
-	_namespaces, _ := ioutil.ReadDir(vars.MustGatherRootPath + "/namespaces/")
+	_namespaces, _ := vfs.OS.ReadDir(vfs.OS.Join(vars.MustGatherRootPath, "namespaces"))
 	for _, f := range _namespaces {
 		namespaces = append(namespaces, f.Name())
 	}
-	file, _ := ioutil.ReadFile(omcConfigFile)
+	file, _ := os.ReadFile(omcConfigFile)
 	omcConfigJson := types.Config{}
 	_ = json.Unmarshal([]byte(file), &omcConfigJson)
 
@@ -71,7 +71,7 @@ func projectDefault(omcConfigFile string, projDefault string) {
 	if err != nil {
 		log.Fatal("Json Marshal failed")
 	}
-	_ = ioutil.WriteFile(omcConfigFile, file, 0644)
+	_ = os.WriteFile(omcConfigFile, file, 0644)
 
 }
 

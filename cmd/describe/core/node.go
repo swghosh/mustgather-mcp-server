@@ -17,10 +17,10 @@ package core
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 
 	"github.com/gmeghnag/omc/cmd/helpers"
+	"github.com/gmeghnag/omc/pkg/vfs"
 	"github.com/gmeghnag/omc/types"
 	"github.com/gmeghnag/omc/vars"
 
@@ -32,11 +32,11 @@ import (
 )
 
 func describeNode(currentContextPath string, namespace string, args []string) {
-	resourceDir := currentContextPath + "/cluster-scoped-resources/core/nodes"
-	resourcesFiles, _ := ioutil.ReadDir(resourceDir)
+	resourceDir := vfs.OS.Join(currentContextPath, "cluster-scoped-resources", "core", "nodes")
+	resourcesFiles, _ := vfs.OS.ReadDir(resourceDir)
 	for _, f := range resourcesFiles {
-		resourceYamlPath := resourceDir + "/" + f.Name()
-		_file, _ := ioutil.ReadFile(resourceYamlPath)
+		resourceYamlPath := vfs.OS.Join(resourceDir, f.Name())
+		_file, _ := vfs.OS.ReadFile(resourceYamlPath)
 		_Node := corev1.Node{}
 		if err := yaml.Unmarshal(_file, &_Node); err != nil {
 			fmt.Fprintln(os.Stderr, "Error when trying to unmarshal file: "+resourceYamlPath)
