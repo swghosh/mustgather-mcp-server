@@ -3,11 +3,11 @@ package etcd
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 
 	"github.com/dustin/go-humanize"
+	"github.com/gmeghnag/omc/pkg/vfs"
 	"github.com/olekukonko/tablewriter"
 	etcdserverpb "go.etcd.io/etcd/api/v3/etcdserverpb"
 )
@@ -25,7 +25,7 @@ type epHealth struct {
 }
 
 func EndpointStatus(etcdFolderPath string) {
-	_file, _ := ioutil.ReadFile(etcdFolderPath + "endpoint_status.json")
+	_file, _ := vfs.OS.ReadFile(etcdFolderPath + "endpoint_status.json")
 	var Endpoints []Endpoint
 	if err := json.Unmarshal([]byte(_file), &Endpoints); err != nil {
 		fmt.Fprintln(os.Stderr, "Error when trying to unmarshal file \""+etcdFolderPath+"endpoint_status.json\":", err.Error())
@@ -56,7 +56,7 @@ func EndpointStatus(etcdFolderPath string) {
 }
 
 func EndpointHealth(etcdFolderPath string) {
-	_file, _ := ioutil.ReadFile(etcdFolderPath + "endpoint_health.json")
+	_file, _ := vfs.OS.ReadFile(etcdFolderPath + "endpoint_health.json")
 	var healthList []epHealth
 	if err := json.Unmarshal([]byte(_file), &healthList); err != nil {
 		fmt.Fprintln(os.Stderr, "Error when trying to unmarshal file \""+etcdFolderPath+"endpoint_status.json\":", err.Error())
