@@ -414,7 +414,8 @@ func ShortHumanDuration(d time.Duration) string {
 	// Allow deviation no more than 2 seconds(excluded) to tolerate machine time
 	// inconsistence, it can be considered as almost now.
 	if seconds := int(d.Seconds()); seconds < -1 {
-		return fmt.Sprintf("<invalid>")
+		// TODO: fix age showing up as weird
+		return fmt.Sprintf("")
 	} else if seconds < 0 {
 		return fmt.Sprintf("0s")
 	} else if seconds < 60 {
