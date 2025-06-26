@@ -236,6 +236,10 @@ var UseCmd = &cobra.Command{
 		if len(args) == 1 {
 			path = args[0]
 
+			if isCIArtifactPath(path) {
+				path = SanitizeCIArtifactPath(path)
+			}
+
 			vfs.CurrentFS = &vfs.LocalFS{}
 			if IsGCSPath(path) {
 				fs, err = vfs.NewGcsFS(path)
