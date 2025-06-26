@@ -3,6 +3,7 @@ package vfs
 import (
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -195,7 +196,10 @@ type GcsFS struct {
 	objectPrefix string
 }
 
-func NewGcsFS(ctx context.Context, baseURL string) (*GcsFS, error) {
+func NewGcsFS(baseURL string) (*GcsFS, error) {
+	ctx := context.Background()
+
+	log.Printf("GcsFS: NewGcsFS with baseURL %s", baseURL)
 	client, err := storage.NewClient(ctx)
 	if err != nil {
 		return nil, err
@@ -213,10 +217,16 @@ func NewGcsFS(ctx context.Context, baseURL string) (*GcsFS, error) {
 }
 
 func (g *GcsFS) getObjectPath(p string) string {
+	// if strings.HasPrefix(p, "gs:/") {
+	// 	// 	return path.Join(elem[1:]...)
+	// 	return p
+	// }
+
 	return path.Join(g.objectPrefix, p)
 }
 
 func (g *GcsFS) ReadFile(p string) ([]byte, error) {
+	log.Printf("GcsFS: ReadFile %s", p)
 	ctx := context.Background()
 	objPath := g.getObjectPath(p)
 	rc, err := g.bucket.Object(objPath).NewReader(ctx)
@@ -228,6 +238,8 @@ func (g *GcsFS) ReadFile(p string) ([]byte, error) {
 }
 
 func (g *GcsFS) ReadDir(p string) ([]os.DirEntry, error) {
+	log.Printf("GcsFS: ReadDir %s", p)
+
 	ctx := context.Background()
 	objPath := g.getObjectPath(p)
 	if objPath != "" && !strings.HasSuffix(objPath, "/") {
@@ -275,6 +287,7 @@ func (g *GcsFS) ReadDir(p string) ([]os.DirEntry, error) {
 }
 
 func (g *GcsFS) Stat(p string) (os.FileInfo, error) {
+	log.Printf("GcsFS: Stat %s", p)
 	ctx := context.Background()
 	objPath := g.getObjectPath(p)
 	attrs, err := g.bucket.Object(objPath).Attrs(ctx)
@@ -302,6 +315,11 @@ func (g *GcsFS) Stat(p string) (os.FileInfo, error) {
 }
 
 func (g *GcsFS) Join(elem ...string) string {
+	log.Printf("GcsFS: Join %v", elem)
+	if strings.HasPrefix(elem[0], "gs:/") {
+		return path.Join(elem[1:]...)
+	}
+
 	return path.Join(elem...)
 }
 
@@ -367,18 +385,22 @@ func (i *gcsFileInfo) Sys() interface{} {
 type LocalFS struct{}
 
 func (l *LocalFS) ReadFile(path string) ([]byte, error) {
+	log.Printf("LocalFS: ReadFile %s", path)
 	return os.ReadFile(path)
 }
 
 func (l *LocalFS) ReadDir(path string) ([]os.DirEntry, error) {
+	log.Printf("LocalFS: ReadDir %s", path)
 	return os.ReadDir(path)
 }
 
 func (l *LocalFS) Stat(path string) (os.FileInfo, error) {
+	log.Printf("LocalFS: Stat %s", path)
 	return os.Stat(path)
 }
 
 func (l *LocalFS) Join(elem ...string) string {
+	log.Printf("LocalFS: Join %v", elem)
 	return filepath.Join(elem...)
 }
 

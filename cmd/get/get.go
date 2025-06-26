@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"sort"
 	"strings"
 
@@ -194,12 +195,14 @@ func getNamespacedResources(resourceNamePlural string, resourceGroup string, res
 		vars.Namespace = ""
 		vars.ShowNamespace = true
 		_namespaces, _ := ReadDirForResources(vfs.OS.Join(vars.MustGatherRootPath, "namespaces"))
+		log.Printf("number of namespaces: %d", len(_namespaces))
 		for _, f := range _namespaces {
 			namespaces = append(namespaces, f.Name())
 		}
 	} else {
 		namespaces = append(namespaces, vars.Namespace)
 	}
+
 	for _, namespace := range namespaces {
 		UnstructuredItems := types.UnstructuredList{ApiVersion: "v1", Kind: "List"}
 		resourcesItemsPath := vfs.OS.Join(vars.MustGatherRootPath, "namespaces", namespace, resourceGroup, resourceNamePlural+".yaml")

@@ -406,7 +406,7 @@ func TranslateTimestamp(timestamp metav1.Time) string {
 	if timestamp.IsZero() {
 		return "<unknown>"
 	}
-	ResourceFile, _ := vfs.OS.Stat(vars.MustGatherRootPath + "/namespaces")
+	ResourceFile, _ := vfs.OS.Stat(vfs.OS.Join(vars.MustGatherRootPath, "namespaces"))
 	t2 := ResourceFile.ModTime()
 	return ShortHumanDuration(t2.Sub(timestamp.Time))
 }

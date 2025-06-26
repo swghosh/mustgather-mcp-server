@@ -3,6 +3,7 @@ package get
 import (
 	"fmt"
 	"io/fs"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -272,7 +273,10 @@ func ReadDirForResources(path string) ([]fs.DirEntry, error) {
 func readDirForResources(path string) ([]fs.DirEntry, error) {
 	resources := make([]fs.DirEntry, 0)
 	files, err := vfs.OS.ReadDir(path)
+
 	if err == nil {
+		log.Printf("problematic path: %s", path)
+		log.Printf("number of files: %d", len(files))
 		for _, file := range files {
 			fileName := file.Name()
 			// validate filename as per k8s validation of a resource
@@ -280,11 +284,12 @@ func readDirForResources(path string) ([]fs.DirEntry, error) {
 				// only dirs or yaml files are expected as valid resources, e.g.:
 				//  router-default-abcde12345-fgh678 or rendered-worker-abcdef123456.yaml
 				if filepath.Ext(fileName) == ".yaml" || file.IsDir() {
-					fInfo, _ := file.Info()
+					// fInfo, _ := file.Info()
 					// ignore empty files
-					if fInfo.Size() > 0 {
-						resources = append(resources, file)
-					}
+					// if fInfo.Size() > 0 {
+					log.Printf("adding file: %s", file.Name())
+					resources = append(resources, file)
+					// }
 				}
 			}
 		}

@@ -16,7 +16,6 @@ limitations under the License.
 package use
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -78,15 +77,10 @@ func UseContext(fs vfs.Filesystem, path string, omcConfigFile string, idFlag str
 		} else {
 			ctxId = helpers.RandString(8)
 			var namespaces []string
-			if IsGCSPath(path) || IsRemoteFile(path) {
-				// For remote paths, we can't determine the namespaces upfront
-				// so we'll just use the default.
-				namespaces = []string{defaultProject}
-			} else {
-				_namespaces, _ := fs.ReadDir(fs.Join(path, "namespaces"))
-				for _, f := range _namespaces {
-					namespaces = append(namespaces, f.Name())
-				}
+
+			_namespaces, _ := fs.ReadDir(fs.Join(path, "namespaces"))
+			for _, f := range _namespaces {
+				namespaces = append(namespaces, f.Name())
 			}
 
 			if len(namespaces) == 1 {
@@ -124,6 +118,7 @@ func findMustGatherIn(fs vfs.Filesystem, path string) (string, error) {
 	if IsGCSPath(path) || IsRemoteFile(path) {
 		return path, nil
 	}
+
 	files, err := fs.ReadDir(path)
 	if err != nil {
 		return "", err
@@ -251,7 +246,7 @@ var UseCmd = &cobra.Command{
 		if len(args) == 1 {
 			path = args[0]
 			if IsGCSPath(path) {
-				fs, err = vfs.NewGcsFS(context.Background(), path)
+				fs, err = vfs.NewGcsFS(path)
 				if err != nil {
 					fmt.Fprintln(os.Stderr, "Error creating GCS filesystem: ", err)
 					os.Exit(1)

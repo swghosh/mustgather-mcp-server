@@ -1,7 +1,6 @@
 package vfs
 
 import (
-	"context"
 	"path"
 	"testing"
 )
@@ -40,12 +39,12 @@ import (
 // }
 
 func TestGcsFs(t *testing.T) {
-	fs, err := NewGcsFS(context.Background(), "gs://test-platform-results/logs/periodic-ci-openshift-release-master-okd-scos-4.20-upgrade-from-okd-scos-4.19-e2e-aws-ovn-upgrade/1937465859354136576/artifacts/e2e-aws-ovn-upgrade/gather-must-gather/artifacts/must-gather/inspect.local.3813551405126079732")
+	fs, err := NewGcsFS("gs://test-platform-results/logs/periodic-ci-openshift-release-master-okd-scos-4.20-upgrade-from-okd-scos-4.19-e2e-aws-ovn-upgrade/1937465859354136576/artifacts/e2e-aws-ovn-upgrade/gather-must-gather/artifacts/must-gather/inspect.local.3813551405126079732")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	files, err := fs.ReadDir(".")
+	files, err := fs.ReadDir("namespaces")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,4 +60,9 @@ func TestGcsFs(t *testing.T) {
 	}
 
 	t.Logf("file: %v", string(file[:50]))
+
+	_, err = fs.ReadDir(fs.Join("gs://test-platform-results/logs/periodic-ci-openshift-release-master-okd-scos-4.20-upgrade-from-okd-scos-4.19-e2e-aws-ovn-upgrade/1937465859354136576/artifacts/e2e-aws-ovn-upgrade/gather-must-gather/artifacts/must-gather/inspect.local.3813551405126079732", "namespaces"))
+	if err != nil {
+		t.Fatal(err)
+	}
 }

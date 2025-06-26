@@ -38,6 +38,7 @@ import (
 	"github.com/gmeghnag/omc/cmd/prometheus"
 	"github.com/gmeghnag/omc/cmd/upgrade"
 	"github.com/gmeghnag/omc/cmd/use"
+	"github.com/gmeghnag/omc/pkg/vfs"
 	"github.com/gmeghnag/omc/types"
 	"github.com/gmeghnag/omc/vars"
 
@@ -146,8 +147,21 @@ func initConfig() {
 		contexts := omcConfigJson.Contexts
 		for _, context := range contexts {
 			if context.Current == "*" {
-				fmt.Println(context.Path)
+				fmt.Printf("using gather from: %s\n", context.Path)
+
 				vars.MustGatherRootPath = context.Path
+
+				if use.IsGCSPath(vars.MustGatherRootPath) {
+					vfs.OS, err = vfs.NewGcsFS(vars.MustGatherRootPath)
+					if err != nil {
+						fmt.Println(err)
+						os.Exit(1)
+					}
+				} else if use.IsRemoteFile(vars.MustGatherRootPath) {
+					vfs.OS = vfs.NewHttpFS(vars.MustGatherRootPath)
+				}
+				// default still uses vfs.OS as LocalFS
+
 				if vars.Namespace == "" {
 					vars.Namespace = context.Project
 				}
