@@ -25,6 +25,7 @@ type Filesystem interface {
 
 type GcsFS struct {
 	bucket       *storage.BucketHandle
+	bucketName   string
 	objectPrefix string
 }
 
@@ -44,17 +45,49 @@ func NewGcsFS(baseURL string) (*GcsFS, error) {
 
 	return &GcsFS{
 		bucket:       client.Bucket(bucketName),
+		bucketName:   bucketName,
 		objectPrefix: objectPrefix,
 	}, nil
 }
 
 func (g *GcsFS) getObjectPath(p string) string {
-	// if strings.HasPrefix(p, "gs:/") {
-	// 	// 	return path.Join(elem[1:]...)
-	// 	return p
-	// }
 
-	return path.Join(g.objectPrefix, p)
+	// Handle absolute GCS URLs eg. like "gs://bucket-name/whatever/whatnot"
+	// and "gs:/bucket-name/whatever/whatnot"
+	if strings.HasPrefix(p, "gs://") || strings.HasPrefix(p, "gs:/") {
+
+		var trimmed = ""
+		if strings.HasPrefix(p, "gs://") {
+			trimmed = strings.TrimPrefix(p, "gs://")
+		} else if strings.HasPrefix(p, "gs:/") {
+			trimmed = strings.TrimPrefix(p, "gs:/")
+		}
+
+		parts := strings.SplitN(trimmed, "/", 2)
+		if len(parts) < 2 {
+			return ""
+		}
+		bucketName := parts[0]
+		objectPath := parts[1]
+
+		// if it is not the same bucket, exit
+		if bucketName != g.bucketName {
+			klog.Warningf("GcsFS: Accessing different bucket %s (expected %s)", bucketName, g.bucketName)
+			// we should not proceed here! Likely we have a bug that we're going
+			// beyond the bucket.
+			os.Exit(1)
+		}
+
+		return objectPath
+	}
+
+	// Handle relative paths - join with objectPrefix
+	// should covers eg. like "./whatever/foo", "whatever/foo/another"
+	relativePath := strings.TrimPrefix(p, "./")
+	if g.objectPrefix == "" {
+		return relativePath
+	}
+	return path.Join(g.objectPrefix, relativePath)
 }
 
 func (g *GcsFS) ReadFile(p string) ([]byte, error) {
@@ -148,10 +181,6 @@ func (g *GcsFS) Stat(p string) (os.FileInfo, error) {
 
 func (g *GcsFS) Join(elem ...string) string {
 	klog.V(5).Infof("GcsFS: Join %v", elem)
-	if strings.HasPrefix(elem[0], "gs:/") {
-		return path.Join(elem[1:]...)
-	}
-
 	return path.Join(elem...)
 }
 
