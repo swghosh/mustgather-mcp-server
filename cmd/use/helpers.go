@@ -485,3 +485,29 @@ func extractClientVersion(mustGatherLogsFilePath string) string {
 	}
 	return ""
 }
+
+const (
+	ciArtifactHttpPrefix  = "http://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/"
+	ciArtifactHttpsPrefix = "https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/"
+	gcsUrlPrefix          = "gs://"
+)
+
+func isCIArtifactPath(url string) bool {
+	return strings.HasPrefix(url, ciArtifactHttpPrefix) || strings.HasPrefix(url, ciArtifactHttpsPrefix)
+}
+
+func SanitizeCIArtifactPath(url string) string {
+	if strings.HasPrefix(url, ciArtifactHttpPrefix) {
+		return gcsUrlPrefix + strings.TrimPrefix(url, ciArtifactHttpPrefix)
+	}
+
+	if strings.HasPrefix(url, ciArtifactHttpsPrefix) {
+		return gcsUrlPrefix + strings.TrimPrefix(url, ciArtifactHttpsPrefix)
+	}
+
+	return ""
+}
+
+func IsGCSPath(path string) bool {
+	return strings.HasPrefix(path, "gs://")
+}
