@@ -16,6 +16,7 @@ limitations under the License.
 package use
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -77,10 +78,17 @@ func UseContext(fs vfs.Filesystem, path string, omcConfigFile string, idFlag str
 		} else {
 			ctxId = helpers.RandString(8)
 			var namespaces []string
-			_namespaces, _ := fs.ReadDir(fs.Join(path, "namespaces"))
-			for _, f := range _namespaces {
-				namespaces = append(namespaces, f.Name())
+			if IsGCSPath(path) || IsRemoteFile(path) {
+				// For remote paths, we can't determine the namespaces upfront
+				// so we'll just use the default.
+				namespaces = []string{defaultProject}
+			} else {
+				_namespaces, _ := fs.ReadDir(fs.Join(path, "namespaces"))
+				for _, f := range _namespaces {
+					namespaces = append(namespaces, f.Name())
+				}
 			}
+
 			if len(namespaces) == 1 {
 				NewContexts = append(NewContexts, types.Context{Id: ctxId, Path: path, Current: "*", Project: namespaces[0]})
 				vars.Namespace = namespaces[0]
@@ -113,6 +121,9 @@ func UseContext(fs vfs.Filesystem, path string, omcConfigFile string, idFlag str
 }
 
 func findMustGatherIn(fs vfs.Filesystem, path string) (string, error) {
+	if IsGCSPath(path) || IsRemoteFile(path) {
+		return path, nil
+	}
 	files, err := fs.ReadDir(path)
 	if err != nil {
 		return "", err
@@ -239,7 +250,13 @@ var UseCmd = &cobra.Command{
 		}
 		if len(args) == 1 {
 			path = args[0]
-			if IsRemoteFile(path) {
+			if IsGCSPath(path) {
+				fs, err = vfs.NewGcsFS(context.Background(), path)
+				if err != nil {
+					fmt.Fprintln(os.Stderr, "Error creating GCS filesystem: ", err)
+					os.Exit(1)
+				}
+			} else if IsRemoteFile(path) {
 				fs = vfs.NewHttpFS(path)
 			} else {
 				if strings.HasSuffix(path, "/") {
@@ -278,6 +295,10 @@ var UseCmd = &cobra.Command{
 		}
 		MustGatherInfo()
 	},
+}
+
+func IsGCSPath(path string) bool {
+	return strings.HasPrefix(path, "gs://")
 }
 
 func init() {

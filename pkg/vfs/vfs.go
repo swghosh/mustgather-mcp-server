@@ -11,7 +11,11 @@ import (
 	"strings"
 	"time"
 
+	"cloud.google.com/go/storage"
 	"golang.org/x/net/html"
+	"google.golang.org/api/iterator"
+
+	"context"
 )
 
 // Filesystem is an interface that abstracts file system operations.
@@ -184,6 +188,176 @@ func (h *HttpFS) Stat(filePath string) (os.FileInfo, error) {
 
 func (h *HttpFS) Join(elem ...string) string {
 	return path.Join(elem...)
+}
+
+type GcsFS struct {
+	bucket  *storage.BucketHandle
+	baseURL string
+}
+
+func NewGcsFS(ctx context.Context, baseURL string) (*GcsFS, error) {
+	client, err := storage.NewClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	bucketName := strings.Split(strings.TrimPrefix(baseURL, "gs://"), "/")[0]
+	bucket := client.Bucket(bucketName)
+
+	return &GcsFS{
+		bucket:  bucket,
+		baseURL: baseURL,
+	}, nil
+}
+
+func (g *GcsFS) getObjectPath(p string) string {
+	prefix := strings.TrimPrefix(g.baseURL, "gs://")
+	return path.Join(strings.TrimPrefix(prefix, g.bucket.BucketName()+"/"), p)
+}
+
+func (g *GcsFS) ReadFile(p string) ([]byte, error) {
+	ctx := context.Background()
+	objPath := g.getObjectPath(p)
+	rc, err := g.bucket.Object(objPath).NewReader(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer rc.Close()
+	return ioutil.ReadAll(rc)
+}
+
+func (g *GcsFS) ReadDir(p string) ([]os.DirEntry, error) {
+	ctx := context.Background()
+	objPath := g.getObjectPath(p)
+	if !strings.HasSuffix(objPath, "/") {
+		objPath += "/"
+	}
+
+	it := g.bucket.Objects(ctx, &storage.Query{
+		Prefix:    objPath,
+		Delimiter: "/",
+	})
+
+	var entries []os.DirEntry
+	for {
+		attrs, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		entryName := strings.TrimPrefix(attrs.Name, objPath)
+		if entryName == "" {
+			continue
+		}
+
+		isDir := attrs.Name == "" && attrs.Prefix != "" // Subdirectory
+		if attrs.Name != "" {                           // Object
+			entryName = path.Base(attrs.Name)
+		} else { // Prefix
+			entryName = path.Base(strings.TrimSuffix(attrs.Prefix, "/"))
+			isDir = true
+		}
+
+		entries = append(entries, &gcsDirEntry{
+			name:  entryName,
+			isDir: isDir,
+			attrs: attrs,
+		})
+	}
+	return entries, nil
+}
+
+func (g *GcsFS) Stat(p string) (os.FileInfo, error) {
+	ctx := context.Background()
+	objPath := g.getObjectPath(p)
+	attrs, err := g.bucket.Object(objPath).Attrs(ctx)
+	if err != nil {
+		// It might be a directory-like prefix
+		it := g.bucket.Objects(ctx, &storage.Query{Prefix: objPath, Delimiter: "/"})
+		_, err := it.Next()
+		if err == iterator.Done {
+			return nil, os.ErrNotExist
+		}
+		if err != nil {
+			return nil, err
+		}
+		return &gcsFileInfo{
+			name:  path.Base(p),
+			isDir: true,
+		}, nil
+	}
+	return &gcsFileInfo{
+		name:  path.Base(attrs.Name),
+		size:  attrs.Size,
+		isDir: false,
+		mod:   attrs.Updated,
+	}, nil
+}
+
+func (g *GcsFS) Join(elem ...string) string {
+	return path.Join(elem...)
+}
+
+type gcsDirEntry struct {
+	name  string
+	isDir bool
+	attrs *storage.ObjectAttrs
+}
+
+func (e *gcsDirEntry) Name() string {
+	return e.name
+}
+
+func (e *gcsDirEntry) IsDir() bool {
+	return e.isDir
+}
+
+func (e *gcsDirEntry) Type() os.FileMode {
+	if e.isDir {
+		return os.ModeDir
+	}
+	return 0
+}
+
+func (e *gcsDirEntry) Info() (os.FileInfo, error) {
+	return &gcsFileInfo{
+		name:  e.name,
+		isDir: e.isDir,
+		size:  e.attrs.Size,
+		mod:   e.attrs.Updated,
+	}, nil
+}
+
+type gcsFileInfo struct {
+	name  string
+	size  int64
+	isDir bool
+	mod   time.Time
+}
+
+func (i *gcsFileInfo) Name() string {
+	return i.name
+}
+func (i *gcsFileInfo) Size() int64 {
+	return i.size
+}
+func (i *gcsFileInfo) Mode() os.FileMode {
+	if i.isDir {
+		return os.ModeDir
+	}
+	return 0
+}
+func (i *gcsFileInfo) ModTime() time.Time {
+	return i.mod
+}
+func (i *gcsFileInfo) IsDir() bool {
+	return i.isDir
+}
+func (i *gcsFileInfo) Sys() interface{} {
+	return nil
 }
 
 type LocalFS struct{}

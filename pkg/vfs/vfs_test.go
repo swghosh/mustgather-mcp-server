@@ -28,4 +28,11 @@ func TestHttpFs(t *testing.T) {
 	}
 
 	t.Logf("file: %v", string(file))
+
+	file, err = fs.ReadFile("namespaces/kube-system/404")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Logf("file: %v", string(file))
 }
