@@ -1,8 +1,8 @@
 module github.com/gmeghnag/omc
 
-go 1.23.0
+go 1.24
 
-toolchain go1.23.3
+toolchain go1.24.4
 
 replace (
 	// - networking.ClusterCIDR is deprecated as of v1.29.0:
@@ -22,13 +22,15 @@ require (
 	github.com/coreos/go-semver v0.3.1
 	github.com/coreos/ignition/v2 v2.20.0
 	github.com/dustin/go-humanize v1.0.1
+	github.com/mark3labs/mcp-go v0.32.0
+	github.com/njayp/ophis v0.0.10
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/openshift/api v0.0.0-20241211151016-1a7b90faeadf
 	github.com/openshift/machine-config-operator v0.0.1-0.20230526005055-5843b7a4b27f
 	github.com/openshift/openshift-apiserver v0.0.0-alpha.0.0.20230503155233-aac3dd5bf054
 	github.com/prometheus/prometheus v0.300.1
 	github.com/schollz/progressbar/v3 v3.17.1
-	github.com/spf13/cobra v1.8.1
+	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.19.0
 	github.com/ulikunitz/xz v0.5.12
 	github.com/vincent-petithory/dataurl v1.0.0
@@ -85,6 +87,7 @@ require (
 	github.com/googleapis/gax-go/v2 v2.14.2 // indirect
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.24.0 // indirect
+	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/klauspost/compress v1.17.11 // indirect
 	github.com/moby/term v0.5.0 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
@@ -95,6 +98,7 @@ require (
 	github.com/spiffe/go-spiffe/v2 v2.5.0 // indirect
 	github.com/stoewer/go-strcase v1.3.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
+	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	github.com/zeebo/errs v1.4.0 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.5.17 // indirect
 	go.etcd.io/etcd/client/v3 v3.5.17 // indirect
@@ -192,15 +196,15 @@ require (
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/spf13/afero v1.11.0 // indirect
-	github.com/spf13/cast v1.7.1 // indirect
-	github.com/spf13/pflag v1.0.6-0.20210604193023-d5e0c0615ace // indirect
+	github.com/spf13/cast v1.9.2 // indirect
+	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/xlab/treeprint v1.2.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go4.org v0.0.0-20230225012048-214862532bf5 // indirect
 	golang.org/x/crypto v0.39.0 // indirect
 	golang.org/x/exp v0.0.0-20241210194714-1829a127f884 // indirect
-	golang.org/x/net v0.41.0
+	golang.org/x/net v0.41.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
 	golang.org/x/sync v0.15.0 // indirect
 	golang.org/x/sys v0.33.0 // indirect
