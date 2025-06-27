@@ -127,7 +127,7 @@ func initConfig() {
 				cobra.CheckErr(err)
 			}
 		}
-		helpers.CreateConfigFile(home + "/.omc/omc.json")
+		helpers.CreateConfigFile(RootCmd, home+"/.omc/omc.json")
 	}
 	if _, err := os.Stat(home + "/.omc/customresourcedefinitions"); errors.Is(err, os.ErrNotExist) {
 		err := os.Mkdir(home+"/.omc/customresourcedefinitions", os.ModePerm)
@@ -155,7 +155,7 @@ func initConfig() {
 				if use.IsGCSPath(vars.MustGatherRootPath) {
 					vfs.CurrentFS, err = vfs.NewGcsFS(vars.MustGatherRootPath)
 					if err != nil {
-						fmt.Println(err)
+						fmt.Fprintln(RootCmd.ErrOrStderr(), err)
 						os.Exit(1)
 					}
 				}

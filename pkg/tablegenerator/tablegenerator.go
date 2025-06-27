@@ -43,7 +43,7 @@ func CustomColumnsTable(unstruct *unstructured.Unstructured) (*metav1.Table, err
 	cells := make([]interface{}, 0)
 	for _, column := range table.ColumnDefinitions {
 		matches := format.FindStringSubmatch(fieldSelectors[column.Name])
-		cells = append(cells, helpers.GetFromJsonPath(unstruct.Object, fmt.Sprintf("%s%s%s", "{.", matches[1], "}")))
+		cells = append(cells, helpers.GetFromJsonPathWithoutCmd(unstruct.Object, fmt.Sprintf("%s%s%s", "{.", matches[1], "}")))
 	}
 	table.Rows = []metav1.TableRow{{Cells: cells}}
 	return table, nil
@@ -176,13 +176,13 @@ func GenerateCustomResourceTable(unstruct unstructured.Unstructured) (*metav1.Ta
 						continue
 					}
 					if column.Name == "Since" {
-						v := helpers.GetFromJsonPath(unstruct.Object, fmt.Sprintf("%s%s%s", "{", column.JSONPath, "}"))
+						v := helpers.GetFromJsonPathWithoutCmd(unstruct.Object, fmt.Sprintf("%s%s%s", "{", column.JSONPath, "}"))
 						parsedTime, _ := time.Parse(time.RFC3339, v)
 						metav1Time := metav1.Time{Time: parsedTime}
 						v = helpers.TranslateTimestamp(metav1Time)
 						cells = append(cells, v)
 					} else {
-						v := helpers.GetFromJsonPath(unstruct.Object, fmt.Sprintf("%s%s%s", "{", column.JSONPath, "}"))
+						v := helpers.GetFromJsonPathWithoutCmd(unstruct.Object, fmt.Sprintf("%s%s%s", "{", column.JSONPath, "}"))
 						cells = append(cells, v)
 					}
 				}

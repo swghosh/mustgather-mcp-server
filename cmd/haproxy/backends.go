@@ -50,10 +50,10 @@ var Backends = &cobra.Command{
 		if cmd.Flags().Changed("namespace") {
 			wantedNamespace = vars.Namespace
 		}
-		writer := tabwriter.NewWriter(os.Stdout, 0, 8, 1, '\t', tabwriter.AlignRight)
+		writer := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 8, 1, '\t', tabwriter.AlignRight)
 		fmt.Fprintln(writer, "NAMESPACE\tNAME\tINGRESSCONTROLLER\tSERVICES\tPORT\tTERMINATION")
-		for _, configfile := range haproxyConfigFiles(vars.MustGatherRootPath) {
-			backends := parseHAProxyConfig(configfile, wantedNamespace)
+		for _, configfile := range haproxyConfigFiles(cmd, vars.MustGatherRootPath) {
+			backends := parseHAProxyConfig(cmd, configfile, wantedNamespace)
 			for _, b := range backends {
 				fmt.Fprintln(writer, b)
 			}
@@ -62,11 +62,11 @@ var Backends = &cobra.Command{
 	},
 }
 
-func haproxyConfigFiles(root string) []string {
+func haproxyConfigFiles(cmd *cobra.Command, root string) []string {
 	pattern := root + haproxy_config_glob
 	files, err := filepath.Glob(pattern)
 	if err != nil {
-		fmt.Println("Error:", err)
+		fmt.Fprintln(cmd.ErrOrStderr(), "Error:", err)
 		return nil
 	}
 	return files
@@ -74,11 +74,11 @@ func haproxyConfigFiles(root string) []string {
 
 // parse backend lines from a haproxy config file
 // if a namespace is provided, only backends in that namespace are considered
-func parseHAProxyConfig(filename string, wantedNamespace string) []*backend {
+func parseHAProxyConfig(cmd *cobra.Command, filename string, wantedNamespace string) []*backend {
 	ic := icFromFileName(filename)
 	file, err := os.Open(filename)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Fprintln(cmd.ErrOrStderr(), err)
 		return nil
 	}
 	defer file.Close()
@@ -95,7 +95,7 @@ func parseHAProxyConfig(filename string, wantedNamespace string) []*backend {
 					backendLine := scanner.Text()
 					serverLine := isServerLine(backendLine)
 					if serverLine != "" {
-						backend.service = serviceFromServerLine(serverLine)
+						backend.service = serviceFromServerLine(cmd, serverLine)
 						backend.ingressController = ic
 						break
 					}
@@ -106,7 +106,7 @@ func parseHAProxyConfig(filename string, wantedNamespace string) []*backend {
 	}
 
 	if err := scanner.Err(); err != nil {
-		fmt.Println(err)
+		fmt.Fprintln(cmd.ErrOrStderr(), err)
 	}
 	return backends
 }
@@ -195,11 +195,11 @@ func isServerLine(line string) string {
 	return matches[1]
 }
 
-func serviceFromServerLine(line string) *service {
+func serviceFromServerLine(cmd *cobra.Command, line string) *service {
 	parts := strings.Split(line, ":")
 	portNr, err := strconv.Atoi(parts[4])
 	if err != nil {
-		fmt.Printf("Failed to convert port value (%+v) to an int.\n", parts[4])
+		fmt.Fprintf(cmd.ErrOrStderr(), "Failed to convert port value (%+v) to an int.\n", parts[4])
 		return &service{
 			serviceName: parts[1],
 			port:        &port{portName: parts[2]},

@@ -38,20 +38,20 @@ var TargetSubCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		monitoringExist, _ := helpers.Exists(vfs.CurrentFS.Join(vars.MustGatherRootPath, "monitoring"))
 		if !monitoringExist {
-			fmt.Fprintln(os.Stderr, "Path '"+vfs.CurrentFS.Join(vars.MustGatherRootPath, "monitoring")+"' does not exist.")
+			fmt.Fprintln(cmd.ErrOrStderr(), "Path '"+vfs.CurrentFS.Join(vars.MustGatherRootPath, "monitoring")+"' does not exist.")
 			os.Exit(1)
 		}
 		alertsFilePath := vfs.CurrentFS.Join(vars.MustGatherRootPath, "monitoring", "prometheus", PrometheusInstance, "active-targets.json")
 		alertsFilePathExist, _ := helpers.Exists(alertsFilePath)
 		if !alertsFilePathExist {
-			fmt.Fprintln(os.Stderr, "Prometheus targets not found in must-gather.")
+			fmt.Fprintln(cmd.ErrOrStderr(), "Prometheus targets not found in must-gather.")
 			os.Exit(1)
 		}
 		targets := TargetData{}
 		file, _ := vfs.CurrentFS.ReadFile(alertsFilePath)
 		err := json.Unmarshal([]byte(file), &targets)
 		if err != nil {
-			fmt.Println(err)
+			fmt.Fprintln(cmd.ErrOrStderr(), err)
 		}
 		headers := []string{"TARGET", "SCRAPE URL", "HEALTH", "LAST ERROR"}
 		var data [][]string
@@ -59,7 +59,7 @@ var TargetSubCmd = &cobra.Command{
 			row := []string{target.DiscoveredLabels["__meta_kubernetes_endpoint_address_target_name"], target.ScrapeURL, string(target.Health), target.LastError}
 			data = append(data, row)
 		}
-		helpers.PrintTable(headers, data)
+		helpers.PrintTable(cmd, headers, data)
 	},
 }
 

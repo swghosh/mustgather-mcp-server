@@ -9,6 +9,7 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/gmeghnag/omc/pkg/vfs"
 	"github.com/olekukonko/tablewriter"
+	"github.com/spf13/cobra"
 	etcdserverpb "go.etcd.io/etcd/api/v3/etcdserverpb"
 )
 
@@ -24,11 +25,11 @@ type epHealth struct {
 	Error  string `json:"error,omitempty"`
 }
 
-func EndpointStatus(etcdFolderPath string) {
+func EndpointStatus(cmd *cobra.Command, etcdFolderPath string) {
 	_file, _ := vfs.CurrentFS.ReadFile(etcdFolderPath + "endpoint_status.json")
 	var Endpoints []Endpoint
 	if err := json.Unmarshal([]byte(_file), &Endpoints); err != nil {
-		fmt.Fprintln(os.Stderr, "Error when trying to unmarshal file \""+etcdFolderPath+"endpoint_status.json\":", err.Error())
+		fmt.Fprintln(cmd.ErrOrStderr(), "Error when trying to unmarshal file \""+etcdFolderPath+"endpoint_status.json\":", err.Error())
 		os.Exit(1)
 	}
 	var rows [][]string
@@ -49,17 +50,17 @@ func EndpointStatus(etcdFolderPath string) {
 			fmt.Sprint(strings.Join(status.Resp.Errors, ", ")),
 		})
 	}
-	table := tablewriter.NewWriter(os.Stdout)
+	table := tablewriter.NewWriter(cmd.OutOrStdout())
 	table.SetHeader(hdr)
 	table.AppendBulk(rows)
 	table.Render()
 }
 
-func EndpointHealth(etcdFolderPath string) {
+func EndpointHealth(cmd *cobra.Command, etcdFolderPath string) {
 	_file, _ := vfs.CurrentFS.ReadFile(etcdFolderPath + "endpoint_health.json")
 	var healthList []epHealth
 	if err := json.Unmarshal([]byte(_file), &healthList); err != nil {
-		fmt.Fprintln(os.Stderr, "Error when trying to unmarshal file \""+etcdFolderPath+"endpoint_status.json\":", err.Error())
+		fmt.Fprintln(cmd.ErrOrStderr(), "Error when trying to unmarshal file \""+etcdFolderPath+"endpoint_status.json\":", err.Error())
 		os.Exit(1)
 	}
 	var rows [][]string
@@ -72,7 +73,7 @@ func EndpointHealth(etcdFolderPath string) {
 			h.Error,
 		})
 	}
-	table := tablewriter.NewWriter(os.Stdout)
+	table := tablewriter.NewWriter(cmd.OutOrStdout())
 	table.SetHeader(hdr)
 	table.AppendBulk(rows)
 	table.Render()

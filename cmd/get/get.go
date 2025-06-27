@@ -18,7 +18,6 @@ package get
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"sort"
 	"strings"
 
@@ -84,13 +83,13 @@ var GetCmd = &cobra.Command{
 		if vars.OutputStringVar == "wide" {
 			vars.Wide = true
 		}
-		err := validateArgs(args)
+		err := validateArgs(cmd, args)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "%s", err.Error())
+			fmt.Fprintf(cmd.ErrOrStderr(), "%s", err.Error())
 			os.Exit(1)
 		}
 		for resource := range vars.GetArgs {
-			resourceNamePlural, resourceGroup, _, namespaced, err := KindGroupNamespaced(resource)
+			resourceNamePlural, resourceGroup, _, namespaced, err := KindGroupNamespaced(cmd, resource)
 			if err != nil {
 				klog.V(1).ErrorS(err, "ERROR")
 				os.Exit(1)
@@ -98,16 +97,16 @@ var GetCmd = &cobra.Command{
 			// namespaces and projects resources
 			// are exceptions to must-gather resources structure
 			if resourceNamePlural == "namespaces" || resourceNamePlural == "projects" {
-				getNamespacesResources(resourceNamePlural, resourceGroup, vars.GetArgs[resourceNamePlural+"."+resourceGroup])
+				getNamespacesResources(cmd, resourceNamePlural, resourceGroup, vars.GetArgs[resourceNamePlural+"."+resourceGroup])
 			} else if resourceNamePlural == "podnetworkconnectivitychecks" {
-				getPodNetworkConnectivityChecksResources(resourceNamePlural, resourceGroup, vars.GetArgs[resourceNamePlural+"."+resourceGroup])
+				getPodNetworkConnectivityChecksResources(cmd, resourceNamePlural, resourceGroup, vars.GetArgs[resourceNamePlural+"."+resourceGroup])
 			} else if namespaced {
-				getNamespacedResources(resourceNamePlural, resourceGroup, vars.GetArgs[resourceNamePlural+"."+resourceGroup])
+				getNamespacedResources(cmd, resourceNamePlural, resourceGroup, vars.GetArgs[resourceNamePlural+"."+resourceGroup])
 			} else {
-				getClusterScopedResources(resourceNamePlural, resourceGroup, vars.GetArgs[resourceNamePlural+"."+resourceGroup])
+				getClusterScopedResources(cmd, resourceNamePlural, resourceGroup, vars.GetArgs[resourceNamePlural+"."+resourceGroup])
 			}
 		}
-		handleOutput(os.Stdout)
+		handleOutput(cmd)
 	},
 }
 
@@ -188,7 +187,7 @@ func init() {
 	templateprinters.AddTemplateOpenShiftHandlers(vars.TableGenerator)
 }
 
-func getNamespacedResources(resourceNamePlural string, resourceGroup string, resources map[string]struct{}) {
+func getNamespacedResources(cmd *cobra.Command, resourceNamePlural string, resourceGroup string, resources map[string]struct{}) {
 	var namespaces []string
 	if vars.AllNamespaceBoolVar {
 		vars.Namespace = ""
@@ -226,12 +225,12 @@ func getNamespacedResources(resourceNamePlural string, resourceGroup string, res
 						podPath := vfs.CurrentFS.Join(podsDir, podName, podName+".yaml")
 						_file, err := vfs.CurrentFS.ReadFile(podPath)
 						if err != nil {
-							fmt.Fprintf(os.Stderr, "error reading %s: %s\n", podPath, err)
+							fmt.Fprintf(cmd.ErrOrStderr(), "error reading %s: %s\n", podPath, err)
 							os.Exit(1)
 						}
 						var podItem unstructured.Unstructured
 						if err := yaml.Unmarshal(_file, &podItem); err != nil {
-							fmt.Fprintln(os.Stderr, "Error when trying to unmarshal file "+podPath)
+							fmt.Fprintln(cmd.ErrOrStderr(), "Error when trying to unmarshal file "+podPath)
 							os.Exit(1)
 						}
 						if podItem.Object != nil {
@@ -239,7 +238,7 @@ func getNamespacedResources(resourceNamePlural string, resourceGroup string, res
 						}
 					}
 				} else {
-					fmt.Fprintln(os.Stderr, err)
+					fmt.Fprintln(cmd.ErrOrStderr(), err)
 					os.Exit(1)
 				}
 			}
@@ -266,7 +265,7 @@ func getNamespacedResources(resourceNamePlural string, resourceGroup string, res
 					_file, _ := vfs.CurrentFS.ReadFile(resourceYamlPath)
 					item := unstructured.Unstructured{}
 					if err := yaml.Unmarshal(_file, &item); err != nil {
-						fmt.Fprintln(os.Stderr, "Error when trying to unmarshal file: "+resourceYamlPath)
+						fmt.Fprintln(cmd.ErrOrStderr(), "Error when trying to unmarshal file: "+resourceYamlPath)
 						os.Exit(1)
 					}
 					if len(resources) > 0 {
@@ -283,7 +282,7 @@ func getNamespacedResources(resourceNamePlural string, resourceGroup string, res
 	}
 }
 
-func getNamespacesResources(resourceNamePlural string, resourceGroup string, resources map[string]struct{}) {
+func getNamespacesResources(cmd *cobra.Command, resourceNamePlural string, resourceGroup string, resources map[string]struct{}) {
 	if len(resources) > 0 {
 		for namespace := range resources {
 			resourceYamlPath := vfs.CurrentFS.Join(vars.MustGatherRootPath, "namespaces", namespace, namespace+".yaml")
@@ -291,7 +290,7 @@ func getNamespacesResources(resourceNamePlural string, resourceGroup string, res
 			if err == nil {
 				item := unstructured.Unstructured{}
 				if err := yaml.Unmarshal(_file, &item); err != nil {
-					fmt.Fprintln(os.Stderr, "Error when trying to unmarshal file: "+resourceYamlPath)
+					fmt.Fprintln(cmd.ErrOrStderr(), "Error when trying to unmarshal file: "+resourceYamlPath)
 					os.Exit(1)
 				}
 				handleObject(item)
@@ -305,7 +304,7 @@ func getNamespacesResources(resourceNamePlural string, resourceGroup string, res
 			if err == nil {
 				item := unstructured.Unstructured{}
 				if err := yaml.Unmarshal(_file, &item); err != nil {
-					fmt.Fprintln(os.Stderr, "Error when trying to unmarshal file: "+resourceYamlPath)
+					fmt.Fprintln(cmd.ErrOrStderr(), "Error when trying to unmarshal file: "+resourceYamlPath)
 					os.Exit(1)
 				}
 				handleObject(item)
@@ -314,7 +313,7 @@ func getNamespacesResources(resourceNamePlural string, resourceGroup string, res
 	}
 }
 
-func getClusterScopedResources(resourceNamePlural string, resourceGroup string, resources map[string]struct{}) {
+func getClusterScopedResources(cmd *cobra.Command, resourceNamePlural string, resourceGroup string, resources map[string]struct{}) {
 	UnstructuredItems := types.UnstructuredList{ApiVersion: "v1", Kind: "List"}
 	resourcePath := vfs.CurrentFS.Join(vars.MustGatherRootPath, "cluster-scoped-resources", resourceGroup, resourceNamePlural+".yaml")
 	_file, err := vfs.CurrentFS.ReadFile(resourcePath)
@@ -329,11 +328,11 @@ func getClusterScopedResources(resourceNamePlural string, resourceGroup string, 
 			_file, _ := vfs.CurrentFS.ReadFile(resourceYamlPath)
 			item := unstructured.Unstructured{}
 			if err := yaml.Unmarshal(_file, &item); err != nil {
-				fmt.Fprintln(os.Stderr, "Error when trying to unmarshal file: "+resourceYamlPath)
+				fmt.Fprintln(cmd.ErrOrStderr(), "Error when trying to unmarshal file: "+resourceYamlPath)
 				os.Exit(1)
 			}
 			if item.IsList() {
-				fmt.Fprintln(os.Stderr, "error: file \""+resourceYamlPath+"\" contains a \"List\" objectKind, while it should contain a single resource.")
+				fmt.Fprintln(cmd.ErrOrStderr(), "error: file \""+resourceYamlPath+"\" contains a \"List\" objectKind, while it should contain a single resource.")
 				os.Exit(1)
 			}
 			if len(resources) > 0 {
@@ -347,7 +346,7 @@ func getClusterScopedResources(resourceNamePlural string, resourceGroup string, 
 		}
 	} else {
 		if err := yaml.Unmarshal(_file, &UnstructuredItems); err != nil {
-			fmt.Fprintln(os.Stderr, err)
+			fmt.Fprintln(cmd.ErrOrStderr(), err)
 			os.Exit(1)
 		}
 		for _, item := range UnstructuredItems.Items {
@@ -449,14 +448,14 @@ func handleObject(obj unstructured.Unstructured) error {
 	return nil
 }
 
-func handleOutput(w io.Writer) {
+func handleOutput(cmd *cobra.Command) {
 	printer := cliprint.NewTablePrinter(cliprint.PrintOptions{NoHeaders: vars.NoHeaders, Wide: vars.Wide, WithNamespace: false, ShowLabels: false})
 	_resources := make([]string, 0, len(vars.GetArgs))
 	var includesClusterScoped bool
 	for resource := range vars.GetArgs {
 		_resources = append(_resources, resource)
 		// if at least one resource is cluster-scoped, never include a namespace in the output if no resources are found of the kind
-		_, _, _, namespaced, _ := KindGroupNamespaced(resource)
+		_, _, _, namespaced, _ := KindGroupNamespaced(cmd, resource)
 		if !namespaced {
 			includesClusterScoped = true
 		}
@@ -467,43 +466,43 @@ func handleOutput(w io.Writer) {
 		if vars.SingleResource && len(vars.UnstructuredList.Items) == 1 {
 			data, _ := json.MarshalIndent(vars.UnstructuredList.Items[0].Object, "", "  ")
 			data = append(data, '\n')
-			fmt.Fprintf(w, "%s", data)
+			fmt.Fprintf(cmd.OutOrStdout(), "%s", data)
 		} else if !vars.SingleResource && len(vars.UnstructuredList.Items) > 0 {
 			data, _ := json.MarshalIndent(vars.UnstructuredList, "", "  ")
 			data = append(data, '\n')
-			fmt.Fprintf(w, "%s", data)
+			fmt.Fprintf(cmd.OutOrStdout(), "%s", data)
 		} else {
 			if vars.Namespace != "" {
-				fmt.Fprintf(w, "No resources %s found in %s namespace.\n", resources, vars.Namespace)
+				fmt.Fprintf(cmd.OutOrStdout(), "No resources %s found in %s namespace.\n", resources, vars.Namespace)
 			} else {
-				fmt.Fprintf(w, "No resources %s found.\n", resources)
+				fmt.Fprintf(cmd.OutOrStdout(), "No resources %s found.\n", resources)
 			}
 		}
 	} else if strings.HasPrefix(vars.OutputStringVar, "jsonpath=") {
-		jsonPathTemplate := helpers.GetJsonTemplate(vars.OutputStringVar)
+		jsonPathTemplate := helpers.GetJsonTemplate(cmd, vars.OutputStringVar)
 		if vars.SingleResource && len(vars.UnstructuredList.Items) == 1 {
-			helpers.ExecuteJsonPath(vars.UnstructuredList.Items[0].Object, jsonPathTemplate)
+			helpers.ExecuteJsonPath(cmd, vars.UnstructuredList.Items[0].Object, jsonPathTemplate)
 		} else if !vars.SingleResource && len(vars.UnstructuredList.Items) > 0 {
-			helpers.ExecuteJsonPath(vars.JsonPathList, jsonPathTemplate)
+			helpers.ExecuteJsonPath(cmd, vars.JsonPathList, jsonPathTemplate)
 		} else {
 			if vars.Namespace != "" {
-				fmt.Fprintf(w, "No resources %s found in %s namespace.\n", resources, vars.Namespace)
+				fmt.Fprintf(cmd.OutOrStdout(), "No resources %s found in %s namespace.\n", resources, vars.Namespace)
 			} else {
-				fmt.Fprintf(w, "No resources %s found.\n", resources)
+				fmt.Fprintf(cmd.OutOrStdout(), "No resources %s found.\n", resources)
 			}
 		}
 	} else if vars.OutputStringVar == "yaml" {
 		if vars.SingleResource && len(vars.UnstructuredList.Items) == 1 {
 			data, _ := yaml.Marshal(vars.UnstructuredList.Items[0].Object)
-			fmt.Fprintf(w, "%s", data)
+			fmt.Fprintf(cmd.OutOrStdout(), "%s", data)
 		} else if len(vars.UnstructuredList.Items) > 0 {
 			data, _ := yaml.Marshal(vars.UnstructuredList)
-			fmt.Fprintf(w, "%s", data)
+			fmt.Fprintf(cmd.OutOrStdout(), "%s", data)
 		} else {
 			if vars.Namespace != "" {
-				fmt.Fprintf(w, "No resources %s found in %s namespace.\n", resources, vars.Namespace)
+				fmt.Fprintf(cmd.OutOrStdout(), "No resources %s found in %s namespace.\n", resources, vars.Namespace)
 			} else {
-				fmt.Fprintf(w, "No resources %s found.\n", resources)
+				fmt.Fprintf(cmd.OutOrStdout(), "No resources %s found.\n", resources)
 			}
 		}
 	} else {
@@ -517,23 +516,23 @@ func handleOutput(w io.Writer) {
 		if vars.Output.Len() == 0 {
 			// never print the (default/current) namespace if at least one cluster-scoped resource is requested
 			if vars.Namespace == "" || includesClusterScoped {
-				fmt.Fprintf(w, "No resources %s found.\n", resources)
+				fmt.Fprintf(cmd.OutOrStdout(), "No resources %s found.\n", resources)
 			} else {
-				fmt.Fprintf(w, "No resources %s found in %s namespace.\n", resources, vars.Namespace)
+				fmt.Fprintf(cmd.OutOrStdout(), "No resources %s found in %s namespace.\n", resources, vars.Namespace)
 			}
 		} else {
-			vars.Output.WriteTo(w)
+			vars.Output.WriteTo(cmd.OutOrStdout())
 		}
 	}
 }
 
-func getPodNetworkConnectivityChecksResources(resourceNamePlural string, resourceGroup string, resources map[string]struct{}) {
+func getPodNetworkConnectivityChecksResources(cmd *cobra.Command, resourceNamePlural string, resourceGroup string, resources map[string]struct{}) {
 	resourcesYamlPath := vfs.CurrentFS.Join(vars.MustGatherRootPath, "pod_network_connectivity_check", "podnetworkconnectivitychecks.yaml")
 	_file, err := vfs.CurrentFS.ReadFile(resourcesYamlPath)
 	if err == nil {
 		UnstructuredItems := types.UnstructuredList{ApiVersion: "v1", Kind: "List"}
 		if err := yaml.Unmarshal(_file, &UnstructuredItems); err != nil {
-			fmt.Fprintln(os.Stderr, "Error when trying to unmarshal file: "+resourcesYamlPath)
+			fmt.Fprintln(cmd.ErrOrStderr(), "Error when trying to unmarshal file: "+resourcesYamlPath)
 			os.Exit(1)
 		}
 		for _, item := range UnstructuredItems.Items {

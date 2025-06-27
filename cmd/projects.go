@@ -76,22 +76,22 @@ var ProjectsCmd = &cobra.Command{
 	Short: "List all available projects",
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) != 0 {
-			fmt.Fprintln(os.Stderr, "Expect zero arguemnt, found: ", len(args))
+			fmt.Fprintln(cmd.ErrOrStderr(), "Expect zero arguemnt, found: ", len(args))
 			os.Exit(1)
 		}
 		if len(args) == 0 {
-			fmt.Println("You have access to the following projects and can switch between them with ' project <projectname>':")
-			fmt.Println("")
+			fmt.Fprintln(cmd.OutOrStdout(), "You have access to the following projects and can switch between them with ' project <projectname>':")
+			fmt.Fprintln(cmd.OutOrStdout(), "")
 			_namespaces, _ := vfs.CurrentFS.ReadDir(vfs.CurrentFS.Join(vars.MustGatherRootPath, "namespaces"))
 			for _, f := range _namespaces {
 				if f.Name() == vars.Namespace {
-					fmt.Println("  * ", f.Name())
+					fmt.Fprintln(cmd.OutOrStdout(), "  * ", f.Name())
 				} else {
-					fmt.Println("    ", f.Name())
+					fmt.Fprintln(cmd.OutOrStdout(), "    ", f.Name())
 				}
 			}
-			fmt.Println("")
-			fmt.Println("Using project \"" + vars.Namespace + "\" on must-gather \"" + vars.MustGatherRootPath + "\".")
+			fmt.Fprintln(cmd.OutOrStdout(), "")
+			fmt.Fprintln(cmd.OutOrStdout(), "Using project \""+vars.Namespace+"\" on must-gather \""+vars.MustGatherRootPath+"\".")
 		}
 	},
 }

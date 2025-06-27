@@ -152,23 +152,23 @@ func findMustGatherIn(path string) (string, error) {
 	return findMustGatherIn(path + "/" + dirName)
 }
 
-func MustGatherInfo() {
-	fmt.Printf("Must-Gather    : %s\n", vars.MustGatherRootPath)
+func MustGatherInfo(cmd *cobra.Command) {
+	fmt.Fprintf(cmd.OutOrStdout(), "Must-Gather    : %s\n", vars.MustGatherRootPath)
 	if singleNamespaceInMustGather {
-		fmt.Printf("Project        : %s (single project)\n", vars.Namespace)
+		fmt.Fprintf(cmd.OutOrStdout(), "Project        : %s (single project)\n", vars.Namespace)
 	} else {
-		fmt.Printf("Project        : %s\n", vars.Namespace)
+		fmt.Fprintf(cmd.OutOrStdout(), "Project        : %s\n", vars.Namespace)
 	}
 	InfrastructureFilePathExists, _ := helpers.Exists(vfs.CurrentFS.Join(vars.MustGatherRootPath, "cluster-scoped-resources/config.openshift.io/infrastructures.yaml"))
 	if InfrastructureFilePathExists {
 		_file, _ := vfs.CurrentFS.ReadFile(vfs.CurrentFS.Join(vars.MustGatherRootPath, "cluster-scoped-resources/config.openshift.io/infrastructures.yaml"))
 		infrastructureList := configv1.InfrastructureList{}
 		if err := yaml.Unmarshal([]byte(_file), &infrastructureList); err != nil {
-			fmt.Println("Error when trying to unmarshal file: " + vfs.CurrentFS.Join(vars.MustGatherRootPath, "/cluster-scoped-resources/config.openshift.io/infrastructures.yaml"))
+			fmt.Fprintln(cmd.ErrOrStderr(), "Error when trying to unmarshal file: "+vfs.CurrentFS.Join(vars.MustGatherRootPath, "/cluster-scoped-resources/config.openshift.io/infrastructures.yaml"))
 			os.Exit(1)
 		} else {
-			fmt.Printf("ApiServerURL   : %s\n", infrastructureList.Items[0].Status.APIServerURL)
-			fmt.Printf("Platform       : %s\n", infrastructureList.Items[0].Status.PlatformStatus.Type)
+			fmt.Fprintf(cmd.OutOrStdout(), "ApiServerURL   : %s\n", infrastructureList.Items[0].Status.APIServerURL)
+			fmt.Fprintf(cmd.OutOrStdout(), "Platform       : %s\n", infrastructureList.Items[0].Status.PlatformStatus.Type)
 		}
 	}
 	clusterversionFilePathExists, _ := helpers.Exists(vfs.CurrentFS.Join(vars.MustGatherRootPath, "cluster-scoped-resources/config.openshift.io/clusterversions/version.yaml"))
@@ -176,7 +176,7 @@ func MustGatherInfo() {
 		_file, _ := vfs.CurrentFS.ReadFile(vfs.CurrentFS.Join(vars.MustGatherRootPath, "cluster-scoped-resources/config.openshift.io/clusterversions/version.yaml"))
 		ClusterVersion := configv1.ClusterVersion{}
 		if err := yaml.Unmarshal([]byte(_file), &ClusterVersion); err != nil {
-			fmt.Println("Error when trying to unmarshal file: " + vfs.CurrentFS.Join(vars.MustGatherRootPath, "/cluster-scoped-resources/config.openshift.io/clusterversions/version.yaml"))
+			fmt.Fprintln(cmd.ErrOrStderr(), "Error when trying to unmarshal file: "+vfs.CurrentFS.Join(vars.MustGatherRootPath, "/cluster-scoped-resources/config.openshift.io/clusterversions/version.yaml"))
 			os.Exit(1)
 		} else {
 			clusterversion := ""
@@ -188,22 +188,22 @@ func MustGatherInfo() {
 				}
 			}
 
-			fmt.Printf("ClusterID      : %s\n", ClusterVersion.Spec.ClusterID)
-			fmt.Printf("ClusterVersion : %s\n", clusterversion)
+			fmt.Fprintf(cmd.OutOrStdout(), "ClusterID      : %s\n", ClusterVersion.Spec.ClusterID)
+			fmt.Fprintf(cmd.OutOrStdout(), "ClusterVersion : %s\n", clusterversion)
 		}
 	}
 	mustGatherSplitPath := strings.Split(vars.MustGatherRootPath, "/")
 	mustGatherParentPath := strings.Join(mustGatherSplitPath[0:(len(mustGatherSplitPath)-1)], "/")
-	clientVersion := extractClientVersion(mustGatherParentPath + "/must-gather.logs")
+	clientVersion := extractClientVersion(cmd, mustGatherParentPath+"/must-gather.logs")
 	if clientVersion != "" {
-		fmt.Printf("ClientVersion  : %s\n", clientVersion)
+		fmt.Fprintf(cmd.OutOrStdout(), "ClientVersion  : %s\n", clientVersion)
 	}
 	parts := strings.Split(vars.MustGatherRootPath, "/")
 	if len(parts) > 0 {
 		lastPart := parts[len(parts)-1]
 		if strings.Contains(lastPart, "-sha256") {
 			mustGatherImage := strings.Split(lastPart, "-sha256")[0]
-			fmt.Printf("Image          : %s\n", mustGatherImage)
+			fmt.Fprintf(cmd.OutOrStdout(), "Image          : %s\n", mustGatherImage)
 		}
 	}
 
@@ -226,11 +226,11 @@ var UseCmd = &cobra.Command{
 		fs := vfs.CurrentFS
 
 		if len(args) == 0 && idFlag == "" {
-			MustGatherInfo()
+			MustGatherInfo(cmd)
 			os.Exit(0)
 		}
 		if len(args) > 1 {
-			fmt.Fprintln(os.Stderr, "Expect one argument, found: ", len(args))
+			fmt.Fprintln(cmd.ErrOrStderr(), "Expect one argument, found: ", len(args))
 			os.Exit(1)
 		}
 		if len(args) == 1 {
@@ -244,7 +244,7 @@ var UseCmd = &cobra.Command{
 			if IsGCSPath(path) {
 				fs, err = vfs.NewGcsFS(path)
 				if err != nil {
-					fmt.Fprintln(os.Stderr, "Error creating GCS filesystem: ", err)
+					fmt.Fprintln(cmd.ErrOrStderr(), "Error creating GCS filesystem: ", err)
 					os.Exit(1)
 				}
 
@@ -260,9 +260,9 @@ var UseCmd = &cobra.Command{
 
 				isDir, _ := helpers.IsDirectory(path)
 				if !isDir {
-					isCompressedFile, fileType, _ = IsCompressedFile(path)
+					isCompressedFile, fileType, _ = IsCompressedFile(cmd, path)
 					if !isCompressedFile {
-						fmt.Fprintln(os.Stderr, "Error: "+path+" is not a directory nor a compressed file.")
+						fmt.Fprintln(cmd.ErrOrStderr(), "Error: "+path+" is not a directory nor a compressed file.")
 						os.Exit(1)
 					}
 				}
@@ -271,9 +271,9 @@ var UseCmd = &cobra.Command{
 
 		if isCompressedFile {
 			outputpath := filepath.Dir(path)
-			rootfile, err := DecompressFile(path, outputpath, fileType)
+			rootfile, err := DecompressFile(cmd, path, outputpath, fileType)
 			if err != nil {
-				fmt.Fprintln(os.Stderr, "Error: decompressing "+path+" in "+outputpath+": "+err.Error())
+				fmt.Fprintln(cmd.ErrOrStderr(), "Error: decompressing "+path+" in "+outputpath+": "+err.Error())
 				os.Exit(1)
 			}
 			path = rootfile
@@ -281,10 +281,10 @@ var UseCmd = &cobra.Command{
 
 		err = UseContext(path, viper.ConfigFileUsed(), idFlag)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
+			fmt.Fprintln(cmd.ErrOrStderr(), err)
 			os.Exit(1)
 		}
-		MustGatherInfo()
+		MustGatherInfo(cmd)
 	},
 }
 

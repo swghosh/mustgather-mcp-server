@@ -9,13 +9,14 @@ import (
 
 	"github.com/gmeghnag/omc/pkg/vfs"
 	"github.com/gmeghnag/omc/vars"
+	"github.com/spf13/cobra"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/yaml"
 )
 
-func validateArgs(args []string) error {
+func validateArgs(cmd *cobra.Command, args []string) error {
 	if len(args) == 1 && args[0] == "all" {
 		args = []string{"pods.core,services.core,daemonsets.apps,deployments.apps,replicasets.apps,statefulsets.apps,replicationcontrollers.core,deploymentconfigs.apps.openshift.io,builds.build.openshift.io,buildconfigs.build.openshift.io,jobs.batch,cronjobs.batch,routes.route.openshift.io,ingresses.networking.k8s.io,"}
 	}
@@ -29,7 +30,7 @@ func validateArgs(args []string) error {
 			vars.ShowKind = true
 			resourcesTypes := strings.Split(strings.TrimPrefix(strings.TrimSuffix(args[0], ","), ","), ",")
 			for _, resourceType := range resourcesTypes {
-				resourceNamePlural, resourceGroup, _, _, err := KindGroupNamespaced(resourceType)
+				resourceNamePlural, resourceGroup, _, _, err := KindGroupNamespaced(cmd, resourceType)
 				if err == nil {
 					if !strings.Contains(resourceType, ".") {
 						vars.GetArgs[resourceNamePlural+"."+resourceGroup] = make(map[string]struct{})
@@ -43,7 +44,7 @@ func validateArgs(args []string) error {
 			}
 		} else {
 			resourceType := args[0]
-			resourceNamePlural, resourceGroup, _, _, err := KindGroupNamespaced(resourceType)
+			resourceNamePlural, resourceGroup, _, _, err := KindGroupNamespaced(cmd, resourceType)
 			if err == nil {
 				if !strings.Contains(resourceType, ".") {
 					vars.GetArgs[resourceNamePlural+"."+resourceGroup] = make(map[string]struct{})
@@ -62,7 +63,7 @@ func validateArgs(args []string) error {
 			if strings.Contains(arg, "/") {
 				resource := strings.Split(arg, "/")
 				resourceType, resourceName := resource[0], resource[1]
-				resourceNamePlural, resourceGroup, _, _, err := KindGroupNamespaced(resourceType)
+				resourceNamePlural, resourceGroup, _, _, err := KindGroupNamespaced(cmd, resourceType)
 				if err == nil {
 					_, ok := vars.GetArgs[resourceNamePlural+"."+resourceGroup]
 					if !ok {
@@ -83,7 +84,7 @@ func validateArgs(args []string) error {
 		}
 	} else if len(args) > 1 && !strings.Contains(args[0], "/") {
 		resourceType := args[0]
-		resourceNamePlural, resourceGroup, _, _, err := KindGroupNamespaced(resourceType)
+		resourceNamePlural, resourceGroup, _, _, err := KindGroupNamespaced(cmd, resourceType)
 		if err == nil {
 			vars.GetArgs[resourceNamePlural+"."+resourceGroup] = make(map[string]struct{})
 		} else {
@@ -102,7 +103,7 @@ func validateArgs(args []string) error {
 	return nil
 }
 
-func KindGroupNamespaced(alias string) (string, string, string, bool, error) {
+func KindGroupNamespaced(cmd *cobra.Command, alias string) (string, string, string, bool, error) {
 	// when it si called the second time
 	if strings.Contains(alias, ".") {
 		split := strings.Split(alias, ".")
@@ -141,16 +142,16 @@ func KindGroupNamespaced(alias string) (string, string, string, bool, error) {
 			}
 			return _crd.Spec.Names.Plural, _crd.Spec.Group, _crd.Spec.Names.Singular, namespaced, nil
 		}
-		return kindGroupNamespacedFromCrds(alias)
+		return kindGroupNamespacedFromCrds(cmd, alias)
 	}
 }
 
-func kindGroupNamespacedFromCrds(alias string) (string, string, string, bool, error) {
+func kindGroupNamespacedFromCrds(cmd *cobra.Command, alias string) (string, string, string, bool, error) {
 	crdsPath := vfs.CurrentFS.Join(vars.MustGatherRootPath, "cluster-scoped-resources", "apiextensions.k8s.io", "customresourcedefinitions")
 	if ok, _ := Exists(crdsPath); ok {
 		crds, rErr := ReadDirForResources(crdsPath)
 		if rErr != nil {
-			fmt.Fprintln(os.Stderr, rErr)
+			fmt.Fprintln(cmd.ErrOrStderr(), rErr)
 		}
 		for _, f := range crds {
 			crdYamlPath := vfs.CurrentFS.Join(crdsPath, f.Name())
@@ -198,7 +199,7 @@ func kindGroupNamespacedFromCrds(alias string) (string, string, string, bool, er
 	if ok, _ := Exists(omcCrdsPath); ok {
 		crds, rErr := ReadDirForResources(omcCrdsPath)
 		if rErr != nil {
-			fmt.Fprintln(os.Stderr, rErr)
+			fmt.Fprintln(cmd.ErrOrStderr(), rErr)
 		}
 		for _, f := range crds {
 			crdYamlPath := vfs.CurrentFS.Join(omcCrdsPath, f.Name())

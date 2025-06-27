@@ -6,6 +6,7 @@ import (
 
 	"github.com/gmeghnag/omc/cmd/helpers"
 	"github.com/gmeghnag/omc/pkg/vfs"
+	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/yaml"
 )
@@ -16,7 +17,7 @@ type ResourcesItems struct {
 	Items      []*unstructured.Unstructured `json:"items"`
 }
 
-func GetSecrets(currentContextPath string, namespace string, resourceName string, allNamespacesFlag bool, out *[]*unstructured.Unstructured) {
+func GetSecrets(cmd *cobra.Command, currentContextPath string, namespace string, resourceName string, allNamespacesFlag bool, out *[]*unstructured.Unstructured) {
 	var namespaces []string
 	if allNamespacesFlag == true {
 		namespace = "all"
@@ -36,7 +37,7 @@ func GetSecrets(currentContextPath string, namespace string, resourceName string
 			continue
 		}
 		if err := yaml.Unmarshal([]byte(_file), &_Items); err != nil {
-			fmt.Fprintln(os.Stderr, "Error when trying to unmarshal file "+vfs.CurrentFS.Join(CurrentNamespacePath, "core", "secrets.yaml"))
+			fmt.Fprintln(cmd.ErrOrStderr(), "Error when trying to unmarshal file "+vfs.CurrentFS.Join(CurrentNamespacePath, "core", "secrets.yaml"))
 			os.Exit(1)
 		}
 
@@ -46,7 +47,7 @@ func GetSecrets(currentContextPath string, namespace string, resourceName string
 	}
 }
 
-func GetConfigMaps(currentContextPath string, namespace string, resourceName string, allNamespacesFlag bool, out *[]*unstructured.Unstructured) {
+func GetConfigMaps(cmd *cobra.Command, currentContextPath string, namespace string, resourceName string, allNamespacesFlag bool, out *[]*unstructured.Unstructured) {
 	var namespaces []string
 	if allNamespacesFlag == true {
 		namespace = "all"
@@ -66,7 +67,7 @@ func GetConfigMaps(currentContextPath string, namespace string, resourceName str
 			continue
 		}
 		if err := yaml.Unmarshal([]byte(_file), &_Items); err != nil {
-			fmt.Fprintln(os.Stderr, "Error when trying to unmarshal file "+vfs.CurrentFS.Join(CurrentNamespacePath, "core", "configmaps.yaml"))
+			fmt.Fprintln(cmd.ErrOrStderr(), "Error when trying to unmarshal file "+vfs.CurrentFS.Join(CurrentNamespacePath, "core", "configmaps.yaml"))
 			os.Exit(1)
 		}
 		for _, ConfigMap := range _Items.Items {
@@ -75,7 +76,7 @@ func GetConfigMaps(currentContextPath string, namespace string, resourceName str
 	}
 }
 
-func GetCertificateSigningRequests(currentContextPath string, namespace string, resourceName string, allNamespacesFlag bool, out *[]unstructured.Unstructured) {
+func GetCertificateSigningRequests(cmd *cobra.Command, currentContextPath string, namespace string, resourceName string, allNamespacesFlag bool, out *[]unstructured.Unstructured) {
 
 	certificatesigningrequestsFolderPath := vfs.CurrentFS.Join(currentContextPath, "cluster-scoped-resources", "certificates.k8s.io", "certificatesigningrequests")
 	_certificatesigningrequests, _ := vfs.CurrentFS.ReadDir(certificatesigningrequestsFolderPath)
@@ -85,7 +86,7 @@ func GetCertificateSigningRequests(currentContextPath string, namespace string, 
 		_file := helpers.ReadYaml(certificatesigningrequestYamlPath)
 		CertificateSigningRequest := unstructured.Unstructured{}
 		if err := yaml.Unmarshal([]byte(_file), &CertificateSigningRequest); err != nil {
-			fmt.Fprintln(os.Stderr, "Error when trying to unmarshal file: "+certificatesigningrequestYamlPath)
+			fmt.Fprintln(cmd.ErrOrStderr(), "Error when trying to unmarshal file: "+certificatesigningrequestYamlPath)
 			os.Exit(1)
 		}
 		*out = append(*out, CertificateSigningRequest)

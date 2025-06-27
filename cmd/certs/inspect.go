@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	"github.com/gmeghnag/omc/cmd/helpers"
@@ -52,7 +51,7 @@ var Inspect = &cobra.Command{
 		if len(args) == 1 {
 			resourceTypes = strings.Split(strings.ToLower(args[0]), ",")
 		}
-		inspectResources(resourceTypes)
+		inspectResources(cmd, resourceTypes)
 	},
 }
 
@@ -178,7 +177,7 @@ func printParseFailure(w io.Writer, f string) {
 	}
 }
 
-func inspectResources(resourceTypes []string) {
+func inspectResources(cmd *cobra.Command, resourceTypes []string) {
 	var data [][]string
 	var resources []*CertDetail
 	_headers := []string{"namespace", "name", "kind", "age", "certtype", "subject", "notbefore", "notafter", "validfor", "issuer", "groups", "usages"}
@@ -186,21 +185,21 @@ func inspectResources(resourceTypes []string) {
 		switch resourceType {
 		case "cm", "configmap", "configmaps":
 			var configmaps []*unstructured.Unstructured
-			GetConfigMaps(vars.MustGatherRootPath, vars.Namespace, "", vars.AllNamespaceBoolVar, &configmaps)
+			GetConfigMaps(cmd, vars.MustGatherRootPath, vars.Namespace, "", vars.AllNamespaceBoolVar, &configmaps)
 			for _, r := range configmaps {
-				resources = append(resources, inspectConfigMap(os.Stdout, r)...)
+				resources = append(resources, inspectConfigMap(cmd.OutOrStdout(), r)...)
 			}
 		case "secret", "secrets":
 			var secrets []*unstructured.Unstructured
-			GetSecrets(vars.MustGatherRootPath, vars.Namespace, "", vars.AllNamespaceBoolVar, &secrets)
+			GetSecrets(cmd, vars.MustGatherRootPath, vars.Namespace, "", vars.AllNamespaceBoolVar, &secrets)
 			for _, r := range secrets {
-				resources = append(resources, inspectSecret(os.Stdout, r)...)
+				resources = append(resources, inspectSecret(cmd.OutOrStdout(), r)...)
 			}
 		case "csr", "certificatesigningrequest", "certificatesigningrequests":
 			var csrs []unstructured.Unstructured
-			GetCertificateSigningRequests(vars.MustGatherRootPath, vars.Namespace, "", vars.AllNamespaceBoolVar, &csrs)
+			GetCertificateSigningRequests(cmd, vars.MustGatherRootPath, vars.Namespace, "", vars.AllNamespaceBoolVar, &csrs)
 			for _, r := range csrs {
-				resources = append(resources, inspectCSR(os.Stdout, &r)...)
+				resources = append(resources, inspectCSR(cmd.OutOrStdout(), &r)...)
 			}
 		}
 	}
@@ -222,7 +221,7 @@ func inspectResources(resourceTypes []string) {
 		}
 		data = helpers.GetData(data, vars.AllNamespaceBoolVar, false, "", vars.OutputStringVar, 8, _list)
 	}
-	helpers.PrintOutput(resources, 8, vars.OutputStringVar, "", vars.AllNamespaceBoolVar, false, _headers, data, "")
+	helpers.PrintOutput(cmd, resources, 8, vars.OutputStringVar, "", vars.AllNamespaceBoolVar, false, _headers, data, "")
 }
 
 func inspectConfigMap(w io.Writer, obj *unstructured.Unstructured) []*CertDetail {

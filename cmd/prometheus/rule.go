@@ -31,7 +31,7 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-func GetAlertRules(resourcesNames []string, outputFlag string, groupsNames string, rulesStates string, alertsFilePath string) {
+func GetAlertRules(cmd *cobra.Command, resourcesNames []string, outputFlag string, groupsNames string, rulesStates string, alertsFilePath string) {
 	_headers := []string{"group", "rule", "severity", "state", "age", "alerts", "active since"}
 	var data [][]string
 	var filteredRules []Rule
@@ -39,7 +39,7 @@ func GetAlertRules(resourcesNames []string, outputFlag string, groupsNames strin
 	var _Alerts alerts
 	_file, _ := vfs.CurrentFS.ReadFile(alertsFilePath)
 	if err := yaml.Unmarshal([]byte(_file), &_Alerts); err != nil {
-		fmt.Fprintln(os.Stderr, "Error when trying to unmarshal file "+alertsFilePath)
+		fmt.Fprintln(cmd.ErrOrStderr(), "Error when trying to unmarshal file "+alertsFilePath)
 		os.Exit(1)
 	}
 	searchingGroups := []string{}
@@ -83,7 +83,7 @@ func GetAlertRules(resourcesNames []string, outputFlag string, groupsNames strin
 			alertsList := []PromAlert{}
 			b, err := json.Marshal(alerts)
 			if err != nil {
-				fmt.Fprintln(os.Stderr, err)
+				fmt.Fprintln(cmd.ErrOrStderr(), err)
 				os.Exit(1)
 			}
 			json.Unmarshal(b, &alertsList)
@@ -123,28 +123,28 @@ func GetAlertRules(resourcesNames []string, outputFlag string, groupsNames strin
 	if outputFlag == "" {
 		headers = _headers[1:]
 		if len(data) == 0 {
-			fmt.Println("No resources found.")
+			fmt.Fprintln(cmd.OutOrStdout(), "No resources found.")
 		} else {
-			helpers.PrintTable(headers, data)
+			helpers.PrintTable(cmd, headers, data)
 		}
 	}
 	if outputFlag == "wide" {
 		headers = _headers[0:]
 		if len(data) == 0 {
-			fmt.Println("No resources found.")
+			fmt.Fprintln(cmd.OutOrStdout(), "No resources found.")
 		} else {
-			helpers.PrintTable(headers, data)
+			helpers.PrintTable(cmd, headers, data)
 		}
 	}
 	if outputFlag == "yaml" {
 		filteredRulesList.Data = filteredRules
 		y, _ := yaml.Marshal(filteredRulesList)
-		fmt.Println(string(y))
+		fmt.Fprintln(cmd.OutOrStdout(), string(y))
 	}
 	if outputFlag == "json" {
 		filteredRulesList.Data = filteredRules
 		j, _ := json.Marshal(filteredRulesList)
-		fmt.Println(string(j))
+		fmt.Fprintln(cmd.OutOrStdout(), string(j))
 	}
 }
 
@@ -156,7 +156,7 @@ var RuleSubCmd = &cobra.Command{
 		resourcesNames := args
 		monitoringExist, _ := helpers.Exists(vars.MustGatherRootPath + "/monitoring")
 		if !monitoringExist {
-			fmt.Fprintln(os.Stderr, "Path '"+vars.MustGatherRootPath+"/monitoring' does not exist.")
+			fmt.Fprintln(cmd.ErrOrStderr(), "Path '"+vars.MustGatherRootPath+"/monitoring' does not exist.")
 			os.Exit(1)
 		}
 		alertsFilePath := vars.MustGatherRootPath + "/monitoring/alerts.json"
@@ -165,11 +165,11 @@ var RuleSubCmd = &cobra.Command{
 			alertsFilePath = vars.MustGatherRootPath + "/monitoring/prometheus/rules.json"
 			alertsFilePathExist, _ := helpers.Exists(alertsFilePath)
 			if !alertsFilePathExist {
-				fmt.Fprintln(os.Stderr, "Prometheus rules not found in must-gather.")
+				fmt.Fprintln(cmd.ErrOrStderr(), "Prometheus rules not found in must-gather.")
 				os.Exit(1)
 			}
 		}
-		GetAlertRules(resourcesNames, vars.OutputStringVar, GroupName, RuleState, alertsFilePath)
+		GetAlertRules(cmd, resourcesNames, vars.OutputStringVar, GroupName, RuleState, alertsFilePath)
 	},
 }
 

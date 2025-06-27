@@ -25,6 +25,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/spf13/cobra"
 )
 
 // logReader reads (current/previous/rotated) logs from a tree in a base directory:
@@ -86,20 +88,17 @@ func (l *LogReader) FromRotated() {
 // Print the current reader (filtered) to a provided writer.
 // If unfilter, write to provided writer (w).
 // If filtered read from reader line-by-line and apply the filter.
-func (l *LogReader) Read(w io.Writer) {
+func (l *LogReader) Read(cmd *cobra.Command, w io.Writer) {
 	for _, filename := range *l.files {
 		reader, err := open(l.dirname + "/" + filename)
 		if err != nil {
 			if !os.IsNotExist(err) {
 				// since we're scanning through logs dynamically don't error out if log files do not exist
-				fmt.Errorf("failed to open log file: %v", err)
+				fmt.Fprintln(cmd.ErrOrStderr(), "failed to open log file: ", err)
 			}
 			continue
 		}
 		defer reader.Close()
-		if err != nil {
-			fmt.Println(err)
-		}
 		if l.filter == nil {
 			// without filter, copy entire content to the provided writer
 			if _, err := io.Copy(w, reader); err != nil {
@@ -109,7 +108,7 @@ func (l *LogReader) Read(w io.Writer) {
 			// with filter, read line by line and apply the filter
 			scanner := bufio.NewScanner(reader)
 			for scanner.Scan() {
-				log := l.applyFilter(scanner.Bytes())
+				log := l.applyFilter(cmd, scanner.Bytes())
 				if len(log) > 0 {
 					fmt.Fprintln(w, string(log))
 				}
@@ -118,11 +117,11 @@ func (l *LogReader) Read(w io.Writer) {
 	}
 }
 
-func (l *LogReader) applyFilter(raw []byte) []byte {
+func (l *LogReader) applyFilter(cmd *cobra.Command, raw []byte) []byte {
 	if l.filter != nil {
 		log, err := l.filter.filterLogLine(raw)
 		if err != nil {
-			fmt.Fprint(os.Stderr, err)
+			fmt.Fprint(cmd.ErrOrStderr(), err)
 		}
 		return log
 	}

@@ -52,7 +52,7 @@ var SubnetsCmd = &cobra.Command{
 			_file := helpers.ReadYaml(nodeYamlPath)
 			Node := corev1.Node{}
 			if err := yaml.Unmarshal([]byte(_file), &Node); err != nil {
-				fmt.Fprintln(os.Stderr, "Error when trying to unmarshal file: "+nodeYamlPath)
+				fmt.Fprintln(cmd.ErrOrStderr(), "Error when trying to unmarshal file: "+nodeYamlPath)
 				os.Exit(1)
 			}
 			//ROLE
@@ -201,7 +201,7 @@ var SubnetsCmd = &cobra.Command{
 			data = append(data, row)
 
 		}
-		helpers.PrintTable(headers, data)
+		helpers.PrintTable(cmd, headers, data)
 	},
 }
 
