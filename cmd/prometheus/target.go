@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gmeghnag/omc/cmd/helpers"
+	"github.com/gmeghnag/omc/pkg/vfs"
 	"github.com/gmeghnag/omc/vars"
 
 	"github.com/prometheus/prometheus/scrape"
@@ -35,19 +36,19 @@ var TargetSubCmd = &cobra.Command{
 	Aliases: []string{"targets"},
 	Short:   "Retrieve the targets (and their status) scraped by Prometheus.",
 	Run: func(cmd *cobra.Command, args []string) {
-		monitoringExist, _ := helpers.Exists(vars.MustGatherRootPath + "/monitoring")
+		monitoringExist, _ := helpers.Exists(vfs.CurrentFS.Join(vars.MustGatherRootPath, "monitoring"))
 		if !monitoringExist {
-			fmt.Fprintln(os.Stderr, "Path '"+vars.MustGatherRootPath+"/monitoring' does not exist.")
+			fmt.Fprintln(os.Stderr, "Path '"+vfs.CurrentFS.Join(vars.MustGatherRootPath, "monitoring")+"' does not exist.")
 			os.Exit(1)
 		}
-		alertsFilePath := vars.MustGatherRootPath + "/monitoring/prometheus/" + PrometheusInstance + "/active-targets.json"
+		alertsFilePath := vfs.CurrentFS.Join(vars.MustGatherRootPath, "monitoring", "prometheus", PrometheusInstance, "active-targets.json")
 		alertsFilePathExist, _ := helpers.Exists(alertsFilePath)
 		if !alertsFilePathExist {
 			fmt.Fprintln(os.Stderr, "Prometheus targets not found in must-gather.")
 			os.Exit(1)
 		}
 		targets := TargetData{}
-		file, _ := os.ReadFile(alertsFilePath)
+		file, _ := vfs.CurrentFS.ReadFile(alertsFilePath)
 		err := json.Unmarshal([]byte(file), &targets)
 		if err != nil {
 			fmt.Println(err)

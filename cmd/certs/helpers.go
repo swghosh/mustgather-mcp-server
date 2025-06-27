@@ -2,10 +2,10 @@ package certs
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 
 	"github.com/gmeghnag/omc/cmd/helpers"
+	"github.com/gmeghnag/omc/pkg/vfs"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/yaml"
 )
@@ -20,7 +20,7 @@ func GetSecrets(currentContextPath string, namespace string, resourceName string
 	var namespaces []string
 	if allNamespacesFlag == true {
 		namespace = "all"
-		_namespaces, _ := ioutil.ReadDir(currentContextPath + "/namespaces/")
+		_namespaces, _ := vfs.CurrentFS.ReadDir(vfs.CurrentFS.Join(currentContextPath, "namespaces"))
 		for _, f := range _namespaces {
 			namespaces = append(namespaces, f.Name())
 		}
@@ -30,13 +30,13 @@ func GetSecrets(currentContextPath string, namespace string, resourceName string
 
 	for _, _namespace := range namespaces {
 		var _Items ResourcesItems
-		CurrentNamespacePath := currentContextPath + "/namespaces/" + _namespace
-		_file, err := ioutil.ReadFile(CurrentNamespacePath + "/core/secrets.yaml")
+		CurrentNamespacePath := vfs.CurrentFS.Join(currentContextPath, "namespaces", _namespace)
+		_file, err := vfs.CurrentFS.ReadFile(vfs.CurrentFS.Join(CurrentNamespacePath, "core", "secrets.yaml"))
 		if err != nil && !allNamespacesFlag {
 			continue
 		}
 		if err := yaml.Unmarshal([]byte(_file), &_Items); err != nil {
-			fmt.Fprintln(os.Stderr, "Error when trying to unmarshal file "+CurrentNamespacePath+"/core/secrets.yaml")
+			fmt.Fprintln(os.Stderr, "Error when trying to unmarshal file "+vfs.CurrentFS.Join(CurrentNamespacePath, "core", "secrets.yaml"))
 			os.Exit(1)
 		}
 
@@ -50,7 +50,7 @@ func GetConfigMaps(currentContextPath string, namespace string, resourceName str
 	var namespaces []string
 	if allNamespacesFlag == true {
 		namespace = "all"
-		_namespaces, _ := ioutil.ReadDir(currentContextPath + "/namespaces/")
+		_namespaces, _ := vfs.CurrentFS.ReadDir(vfs.CurrentFS.Join(currentContextPath, "namespaces"))
 		for _, f := range _namespaces {
 			namespaces = append(namespaces, f.Name())
 		}
@@ -60,13 +60,13 @@ func GetConfigMaps(currentContextPath string, namespace string, resourceName str
 
 	for _, _namespace := range namespaces {
 		var _Items ResourcesItems
-		CurrentNamespacePath := currentContextPath + "/namespaces/" + _namespace
-		_file, err := ioutil.ReadFile(CurrentNamespacePath + "/core/configmaps.yaml")
+		CurrentNamespacePath := vfs.CurrentFS.Join(currentContextPath, "namespaces", _namespace)
+		_file, err := vfs.CurrentFS.ReadFile(vfs.CurrentFS.Join(CurrentNamespacePath, "core", "configmaps.yaml"))
 		if err != nil && !allNamespacesFlag {
 			continue
 		}
 		if err := yaml.Unmarshal([]byte(_file), &_Items); err != nil {
-			fmt.Fprintln(os.Stderr, "Error when trying to unmarshal file "+CurrentNamespacePath+"/core/configmaps.yaml")
+			fmt.Fprintln(os.Stderr, "Error when trying to unmarshal file "+vfs.CurrentFS.Join(CurrentNamespacePath, "core", "configmaps.yaml"))
 			os.Exit(1)
 		}
 		for _, ConfigMap := range _Items.Items {
@@ -77,11 +77,11 @@ func GetConfigMaps(currentContextPath string, namespace string, resourceName str
 
 func GetCertificateSigningRequests(currentContextPath string, namespace string, resourceName string, allNamespacesFlag bool, out *[]unstructured.Unstructured) {
 
-	certificatesigningrequestsFolderPath := currentContextPath + "/cluster-scoped-resources/certificates.k8s.io/certificatesigningrequests/"
-	_certificatesigningrequests, _ := ioutil.ReadDir(certificatesigningrequestsFolderPath)
+	certificatesigningrequestsFolderPath := vfs.CurrentFS.Join(currentContextPath, "cluster-scoped-resources", "certificates.k8s.io", "certificatesigningrequests")
+	_certificatesigningrequests, _ := vfs.CurrentFS.ReadDir(certificatesigningrequestsFolderPath)
 
 	for _, f := range _certificatesigningrequests {
-		certificatesigningrequestYamlPath := certificatesigningrequestsFolderPath + f.Name()
+		certificatesigningrequestYamlPath := vfs.CurrentFS.Join(certificatesigningrequestsFolderPath, f.Name())
 		_file := helpers.ReadYaml(certificatesigningrequestYamlPath)
 		CertificateSigningRequest := unstructured.Unstructured{}
 		if err := yaml.Unmarshal([]byte(_file), &CertificateSigningRequest); err != nil {

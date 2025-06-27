@@ -32,6 +32,7 @@ import (
 	"k8s.io/kubernetes/pkg/printers"
 	"sigs.k8s.io/yaml"
 
+	"github.com/gmeghnag/omc/pkg/vfs"
 	"github.com/spf13/cobra"
 )
 
@@ -70,15 +71,13 @@ func GetEventList(context string, selectedNs string, allNamespaces bool) (eventL
 	nsFolder := context + "/namespaces/"
 	var namespaces []string
 	if allNamespaces {
-		fileObj, err := os.Open(nsFolder)
+		files, err := vfs.CurrentFS.ReadDir(nsFolder)
 		if err != nil {
 			klog.ErrorS(err, "Unable to read "+nsFolder)
 			os.Exit(1)
 		}
-		namespaces, err = fileObj.Readdirnames(0)
-		if err != nil {
-			klog.ErrorS(err, "Unable to list directories in "+nsFolder)
-			os.Exit(1)
+		for _, f := range files {
+			namespaces = append(namespaces, f.Name())
 		}
 	} else {
 		namespaces = append(namespaces, selectedNs)
@@ -86,9 +85,15 @@ func GetEventList(context string, selectedNs string, allNamespaces bool) (eventL
 
 	for _, namespace := range namespaces {
 		eventsPath := nsFolder + namespace + eventsLocation
-		eventsFile, err := os.ReadFile(eventsPath)
+		_, err := vfs.CurrentFS.Stat(eventsPath)
 		if err != nil {
-			klog.V(5).ErrorS(err, "Unable to read events.yaml")
+			klog.V(5).ErrorS(err, "No events found in "+eventsPath)
+			continue
+		}
+
+		eventsFile, err := vfs.CurrentFS.ReadFile(eventsPath)
+		if err != nil {
+			klog.V(3).ErrorS(err, "Unable to read events.yaml")
 			continue
 		}
 		var nsEvents corev1.EventList

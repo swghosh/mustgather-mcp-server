@@ -17,12 +17,12 @@ package logs
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"strings"
 
 	"github.com/gmeghnag/omc/cmd/helpers"
+	"github.com/gmeghnag/omc/pkg/vfs"
 	"github.com/gmeghnag/omc/vars"
 
 	"github.com/spf13/cobra"
@@ -41,7 +41,7 @@ var Logs = &cobra.Command{
 		}
 		exist, _ := helpers.Exists(vars.MustGatherRootPath + "/namespaces")
 		if !exist {
-			files, err := ioutil.ReadDir(vars.MustGatherRootPath)
+			files, err := vfs.CurrentFS.ReadDir(vars.MustGatherRootPath)
 			if err != nil {
 				log.Fatal(err)
 			}

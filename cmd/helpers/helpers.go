@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/fs"
 	"io/ioutil"
 	"log"
@@ -15,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gmeghnag/omc/pkg/vfs"
 	"github.com/gmeghnag/omc/types"
 	"github.com/gmeghnag/omc/vars"
 
@@ -177,11 +177,11 @@ func ExtractLabel(_labels map[string]string, _label string) string {
 // doing this because of a bug who append three characthers to the first node yaml file
 func ReadYaml(YamlPath string) []byte {
 	var __file []byte
-	_file, err := os.Open(YamlPath)
+	fileBytes, err := vfs.CurrentFS.ReadFile(YamlPath)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer _file.Close()
+	_file := bytes.NewReader(fileBytes)
 
 	scanner := bufio.NewScanner(_file)
 	for scanner.Scan() {
@@ -198,11 +198,11 @@ func ReadYaml(YamlPath string) []byte {
 
 func GetAge(resourcefilePath string, resourceCreationTimeStamp v1.Time) string {
 	var ResourceFile fs.FileInfo
-	ResourceFile, err := os.Stat(resourcefilePath + "/timestamp")
+	ResourceFile, err := vfs.CurrentFS.Stat(resourcefilePath + "/timestamp")
 	if err != nil {
-		ResourceFile, err = os.Stat(resourcefilePath + "/namespaces")
+		ResourceFile, err = vfs.CurrentFS.Stat(resourcefilePath + "/namespaces")
 		if err != nil {
-			ResourceFile, err = os.Stat(resourcefilePath + "/cluster-scoped-resources")
+			ResourceFile, err = vfs.CurrentFS.Stat(resourcefilePath + "/cluster-scoped-resources")
 			if err != nil {
 				return "Unknown"
 			}
@@ -216,7 +216,7 @@ func GetAge(resourcefilePath string, resourceCreationTimeStamp v1.Time) string {
 }
 
 func IsDirectory(path string) (bool, error) {
-	fileInfo, err := os.Stat(path)
+	fileInfo, err := vfs.CurrentFS.Stat(path)
 	if err != nil {
 		return false, err
 	}
@@ -225,7 +225,7 @@ func IsDirectory(path string) (bool, error) {
 }
 
 func Exists(path string) (bool, error) {
-	_, err := os.Stat(path)
+	_, err := vfs.CurrentFS.Stat(path)
 	if err == nil {
 		return true, nil
 	}
@@ -279,23 +279,11 @@ func PrintOutput(resource interface{}, columns int16, outputFlag string, resourc
 }
 
 func Cat(filePath string) {
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+	if _, err := vfs.CurrentFS.Stat(filePath); os.IsNotExist(err) {
 		fmt.Fprintln(os.Stderr, "error: could not find file "+filePath)
 		os.Exit(1)
 	}
-	file, err := os.Open(filePath)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "error: could not open file "+filePath)
-		os.Exit(1)
-	}
-	defer func() {
-		if err = file.Close(); err != nil {
-			fmt.Fprintln(os.Stderr, "error: could not close file "+filePath)
-			os.Exit(1)
-		}
-	}()
-
-	fileBytes, err := io.ReadAll(file)
+	fileBytes, err := vfs.CurrentFS.ReadFile(filePath)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error: could not read file "+filePath)
 		os.Exit(1)
@@ -418,7 +406,7 @@ func TranslateTimestamp(timestamp metav1.Time) string {
 	if timestamp.IsZero() {
 		return "<unknown>"
 	}
-	ResourceFile, _ := os.Stat(vars.MustGatherRootPath + "/namespaces")
+	ResourceFile, _ := vfs.CurrentFS.Stat(vfs.CurrentFS.Join(vars.MustGatherRootPath, "namespaces"))
 	t2 := ResourceFile.ModTime()
 	return ShortHumanDuration(t2.Sub(timestamp.Time))
 }

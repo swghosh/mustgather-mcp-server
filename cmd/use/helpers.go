@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"archive/zip"
 	"bufio"
+	"bytes"
 	"compress/gzip"
 	"fmt"
 	"io"
@@ -17,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gmeghnag/omc/pkg/vfs"
 	"github.com/ulikunitz/xz"
 )
 
@@ -85,34 +87,31 @@ func (counter *WriteCounter) ShowProgress() {
 }
 
 func GetHeaderFile(path string) (string, error) {
-	file, err := os.Open(path)
+	file, err := vfs.CurrentFS.ReadFile(path)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error: cannot open "+path+": "+err.Error())
 		return "", err
 	}
-	defer file.Close()
 
 	buff := make([]byte, 512)
-
-	_, err = file.Read(buff)
-
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "error reading file header: "+err.Error())
-		return "", err
+	if len(file) < 512 {
+		buff = make([]byte, len(file))
 	}
+
+	copy(buff, file)
+
 	filetype := http.DetectContentType(buff)
 
 	return filetype, nil
 }
 
 func isTarFile(path string) (bool, error) {
-	file, err := os.Open(path)
+	file, err := vfs.CurrentFS.ReadFile(path)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error: cannot open "+path+": "+err.Error())
 		return false, err
 	}
-	defer file.Close()
-	tarReader := tar.NewReader(file)
+	tarReader := tar.NewReader(bytes.NewReader(file))
 	_, err = tarReader.Next()
 	if err != nil {
 		return false, fmt.Errorf("unable to read tarbal file: %w", err)
@@ -138,13 +137,12 @@ func isGzip(path string) (bool, error) {
 }
 
 func isXZ(path string) (bool, error) {
-	file, err := os.Open(path)
+	file, err := vfs.CurrentFS.ReadFile(path)
 	if err != nil {
 		return false, err
 	}
-	defer file.Close()
 
-	_, err = xz.NewReader(file)
+	_, err = xz.NewReader(bytes.NewReader(file))
 	if err != nil {
 		return false, err
 	}
@@ -234,19 +232,18 @@ func DownloadFile(path string) (string, error) {
 }
 
 func CopyFile(path string, destinationfile string) error {
-	source, err := os.Open(path)
+	source, err := vfs.CurrentFS.ReadFile(path)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error opening file "+path+": "+err.Error())
 		return err
 	}
-	defer source.Close()
 	dest, err := os.Create(destinationfile)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error creating file "+destinationfile+": "+err.Error())
 		return err
 	}
 	defer dest.Close()
-	_, err = io.Copy(dest, source)
+	_, err = dest.Write(source)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error copying file "+path+" to "+destinationfile+": "+err.Error())
 	}
@@ -337,15 +334,14 @@ func ExtractTarStream(st io.Reader, destinationdir string) (string, error) {
 }
 
 func ExtractTar(tarfile string, destinationdir string) (string, error) {
-	tarStream, err := os.Open(tarfile)
+	tarStream, err := vfs.CurrentFS.ReadFile(tarfile)
 	var mgRootDir string
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error: cannot open "+tarfile+": "+err.Error())
 		return "", err
 	}
-	defer tarStream.Close()
 
-	var fileReader io.ReadCloser = tarStream
+	var fileReader io.Reader = bytes.NewReader(tarStream)
 	mgRootDir, err = ExtractTarStream(fileReader, destinationdir)
 
 	return mgRootDir, err
@@ -411,13 +407,12 @@ func ExtractZip(zipfile string, destinationdir string) (string, error) {
 }
 
 func ExtractTarGz(gzipfile string, destinationdir string) (string, error) {
-	gzipStream, err := os.Open(gzipfile)
+	gzipStream, err := vfs.CurrentFS.ReadFile(gzipfile)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error: cannot open "+gzipfile+": "+err.Error())
 		return "", err
 	}
-	defer gzipStream.Close()
-	uncompressedStream, err := gzip.NewReader(gzipStream)
+	uncompressedStream, err := gzip.NewReader(bytes.NewReader(gzipStream))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error: cannot uncompress gzip "+gzipfile+": "+err.Error())
 		return "", err
@@ -426,13 +421,12 @@ func ExtractTarGz(gzipfile string, destinationdir string) (string, error) {
 }
 
 func extractTarXZ(xzFile string, destinationdir string) (string, error) {
-	stream, err := os.Open(xzFile)
+	stream, err := vfs.CurrentFS.ReadFile(xzFile)
 	if err != nil {
 		return "", fmt.Errorf("error: cannot open %q: %w", xzFile, err)
 	}
-	defer stream.Close()
 
-	xzReader, err := xz.NewReader(stream)
+	xzReader, err := xz.NewReader(bytes.NewReader(stream))
 	if err != nil {
 		return "", fmt.Errorf("error: cannot uncompress xz file %q: %w", xzFile, err)
 	}
@@ -443,14 +437,13 @@ func extractClientVersion(mustGatherLogsFilePath string) string {
 	filePath := mustGatherLogsFilePath
 	clientVersion := ""
 	// Open the file
-	file, err := os.Open(filePath)
+	file, err := vfs.CurrentFS.ReadFile(filePath)
 	if err != nil {
 		return ""
 	}
-	defer file.Close()
 
 	// Initialize a scanner to read the file line by line
-	scanner := bufio.NewScanner(file)
+	scanner := bufio.NewScanner(bytes.NewReader(file))
 
 	// Variable to store the matching line
 	var clientVersionLine string

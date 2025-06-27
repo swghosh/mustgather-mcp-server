@@ -18,13 +18,13 @@ package prometheus
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gmeghnag/omc/cmd/helpers"
+	"github.com/gmeghnag/omc/pkg/vfs"
 	"github.com/gmeghnag/omc/vars"
 
 	"github.com/spf13/cobra"
@@ -37,7 +37,7 @@ func GetAlertRules(resourcesNames []string, outputFlag string, groupsNames strin
 	var filteredRules []Rule
 	var filteredRulesList FilteredRulesList
 	var _Alerts alerts
-	_file, _ := ioutil.ReadFile(alertsFilePath)
+	_file, _ := vfs.CurrentFS.ReadFile(alertsFilePath)
 	if err := yaml.Unmarshal([]byte(_file), &_Alerts); err != nil {
 		fmt.Fprintln(os.Stderr, "Error when trying to unmarshal file "+alertsFilePath)
 		os.Exit(1)
