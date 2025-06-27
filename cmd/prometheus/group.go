@@ -23,20 +23,21 @@ import (
 	"time"
 
 	"github.com/gmeghnag/omc/cmd/helpers"
+	"github.com/gmeghnag/omc/pkg/vfs"
 	"github.com/gmeghnag/omc/vars"
 
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/yaml"
 )
 
-func GetAlertGroups(resourcesNames []string, outputFlag string, groupFile string, alertsFilePath string) {
+func GetAlertGroups(cmd *cobra.Command, resourcesNames []string, outputFlag string, groupFile string, alertsFilePath string) {
 	_headers := []string{"group", "filename", "age"}
 	var data [][]string
 	var filteredGroups []RuleGroup
 	var _Alerts alerts
-	_file, _ := os.ReadFile(alertsFilePath)
+	_file, _ := vfs.CurrentFS.ReadFile(alertsFilePath)
 	if err := yaml.Unmarshal([]byte(_file), &_Alerts); err != nil {
-		fmt.Fprintln(os.Stderr, "Error when trying to unmarshal file "+alertsFilePath)
+		fmt.Fprintln(cmd.ErrOrStderr(), "Error when trying to unmarshal file "+alertsFilePath)
 		os.Exit(1)
 	}
 
@@ -56,7 +57,7 @@ func GetAlertGroups(resourcesNames []string, outputFlag string, groupFile string
 		}
 
 		//fmt.Println(al.Name, filename)
-		ResourceFile, _ := os.Stat(alertsFilePath)
+		ResourceFile, _ := vfs.CurrentFS.Stat(alertsFilePath)
 		t2 := ResourceFile.ModTime()
 		diffTime := t2.Sub(group.LastEvaluation).String()
 		d, _ := time.ParseDuration(diffTime)
@@ -69,20 +70,20 @@ func GetAlertGroups(resourcesNames []string, outputFlag string, groupFile string
 	if outputFlag == "" || outputFlag == "wide" {
 		headers = _headers[0:3]
 		if len(data) == 0 {
-			fmt.Println("No alertgroups found.")
+			fmt.Fprintln(cmd.OutOrStdout(), "No alertgroups found.")
 		} else {
-			helpers.PrintTable(headers, data)
+			helpers.PrintTable(cmd, headers, data)
 		}
 	}
 	if outputFlag == "yaml" {
 		_Alerts.Data.Groups = filteredGroups
 		y, _ := yaml.Marshal(_Alerts)
-		fmt.Println(string(y))
+		fmt.Fprintln(cmd.OutOrStdout(), string(y))
 	}
 	if outputFlag == "json" {
 		_Alerts.Data.Groups = filteredGroups
 		j, _ := json.Marshal(_Alerts)
-		fmt.Println(string(j))
+		fmt.Fprintln(cmd.OutOrStdout(), string(j))
 	}
 
 }
@@ -93,22 +94,23 @@ var GroupSubCmd = &cobra.Command{
 	Short:   "Retrieve the alerting rules' groups configured in Prometheus.",
 	Run: func(cmd *cobra.Command, args []string) {
 		resourcesNames := args
-		monitoringExist, _ := helpers.Exists(vars.MustGatherRootPath + "/monitoring")
+		monitoringPath := vfs.CurrentFS.Join(vars.MustGatherRootPath, "monitoring")
+		monitoringExist, _ := helpers.Exists(monitoringPath)
 		if !monitoringExist {
-			fmt.Fprintln(os.Stderr, "Path '"+vars.MustGatherRootPath+"/monitoring' does not exist.")
+			fmt.Fprintln(cmd.ErrOrStderr(), "Path '"+monitoringPath+"' does not exist.")
 			os.Exit(1)
 		}
-		alertsFilePath := vars.MustGatherRootPath + "/monitoring/alerts.json"
+		alertsFilePath := vfs.CurrentFS.Join(vars.MustGatherRootPath, "monitoring", "alerts.json")
 		alertsFilePathExist, _ := helpers.Exists(alertsFilePath)
 		if !alertsFilePathExist {
-			alertsFilePath = vars.MustGatherRootPath + "/monitoring/prometheus/rules.json"
+			alertsFilePath = vfs.CurrentFS.Join(vars.MustGatherRootPath, "monitoring", "prometheus", "rules.json")
 			alertsFilePathExist, _ := helpers.Exists(alertsFilePath)
 			if !alertsFilePathExist {
-				fmt.Fprintln(os.Stderr, "Prometheus rules not found in must-gather.")
+				fmt.Fprintln(cmd.ErrOrStderr(), "Prometheus rules not found in must-gather.")
 				os.Exit(1)
 			}
 		}
-		GetAlertGroups(resourcesNames, vars.OutputStringVar, GroupFilename, alertsFilePath)
+		GetAlertGroups(cmd, resourcesNames, vars.OutputStringVar, GroupFilename, alertsFilePath)
 	},
 }
 

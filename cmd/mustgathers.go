@@ -44,10 +44,10 @@ var GetMustGather = &cobra.Command{
 			data = append(data, _list)
 		}
 		if reflect.DeepEqual(data, emptyData) {
-			fmt.Fprintln(os.Stderr, "There are no must-gather resources defined.")
+			fmt.Fprintln(cmd.ErrOrStderr(), "There are no must-gather resources defined.")
 			os.Exit(1)
 		} else {
-			helpers.PrintTable(headers, data)
+			helpers.PrintTable(cmd, headers, data)
 		}
 	},
 }

@@ -18,11 +18,11 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 
 	"github.com/gmeghnag/omc/cmd/helpers"
+	"github.com/gmeghnag/omc/pkg/vfs"
 	"github.com/gmeghnag/omc/types"
 	"github.com/gmeghnag/omc/vars"
 
@@ -30,13 +30,13 @@ import (
 	"github.com/spf13/viper"
 )
 
-func projectDefault(omcConfigFile string, projDefault string) {
+func projectDefault(cmd *cobra.Command, omcConfigFile string, projDefault string) {
 	var namespaces []string
-	_namespaces, _ := ioutil.ReadDir(vars.MustGatherRootPath + "/namespaces/")
+	_namespaces, _ := vfs.CurrentFS.ReadDir(vfs.CurrentFS.Join(vars.MustGatherRootPath, "namespaces"))
 	for _, f := range _namespaces {
 		namespaces = append(namespaces, f.Name())
 	}
-	file, _ := ioutil.ReadFile(omcConfigFile)
+	file, _ := os.ReadFile(omcConfigFile)
 	omcConfigJson := types.Config{}
 	_ = json.Unmarshal([]byte(file), &omcConfigJson)
 
@@ -46,15 +46,15 @@ func projectDefault(omcConfigFile string, projDefault string) {
 	for _, c := range contexts {
 		if c.Current == "*" {
 			if projDefault == "" {
-				fmt.Println("Using project \"" + c.Project + "\" on must-gather \"" + c.Path + "\".")
+				fmt.Fprintln(cmd.OutOrStdout(), "Using project \""+c.Project+"\" on must-gather \""+c.Path+"\".")
 				NewContexts = append(NewContexts, types.Context{Id: c.Id, Path: c.Path, Current: c.Current, Project: c.Project})
 			} else {
 				if !helpers.StringInSlice(projDefault, namespaces) {
-					fmt.Fprintln(os.Stderr, "Error: namespace "+projDefault+" does not exists in must-gather \""+c.Path+"\".")
+					fmt.Fprintln(cmd.ErrOrStderr(), "Error: namespace "+projDefault+" does not exists in must-gather \""+c.Path+"\".")
 					os.Exit(1)
 				}
 				NewContexts = append(NewContexts, types.Context{Id: c.Id, Path: c.Path, Current: c.Current, Project: projDefault})
-				fmt.Println("Now using project \"" + projDefault + "\" on must-gather \"" + c.Path + "\".")
+				fmt.Fprintln(cmd.OutOrStdout(), "Now using project \""+projDefault+"\" on must-gather \""+c.Path+"\".")
 			}
 		} else {
 			NewContexts = append(NewContexts, types.Context{Id: c.Id, Path: c.Path, Current: c.Current, Project: c.Project})
@@ -71,7 +71,7 @@ func projectDefault(omcConfigFile string, projDefault string) {
 	if err != nil {
 		log.Fatal("Json Marshal failed")
 	}
-	_ = ioutil.WriteFile(omcConfigFile, file, 0644)
+	_ = os.WriteFile(omcConfigFile, file, 0644)
 
 }
 
@@ -81,13 +81,13 @@ var ProjectCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		projDefault := ""
 		if len(args) > 1 {
-			fmt.Fprintln(os.Stderr, "Expect one arguemnt, found: ", len(args))
+			fmt.Fprintln(cmd.ErrOrStderr(), "Expect one arguemnt, found: ", len(args))
 			os.Exit(1)
 		}
 		if len(args) == 1 {
 			projDefault = args[0]
 		}
 
-		projectDefault(viper.ConfigFileUsed(), projDefault)
+		projectDefault(cmd, viper.ConfigFileUsed(), projDefault)
 	},
 }

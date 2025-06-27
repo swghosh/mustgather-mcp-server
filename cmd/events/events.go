@@ -32,6 +32,7 @@ import (
 	"k8s.io/kubernetes/pkg/printers"
 	"sigs.k8s.io/yaml"
 
+	"github.com/gmeghnag/omc/pkg/vfs"
 	"github.com/spf13/cobra"
 )
 
@@ -41,13 +42,13 @@ var EventsCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		err := Validate()
 		if err != nil {
-			fmt.Println(err)
+			fmt.Fprintln(cmd.ErrOrStderr(), err)
 			os.Exit(1)
 		}
 		eventList := GetEventList(vars.MustGatherRootPath, vars.Namespace, vars.AllNamespaceBoolVar)
-		FilterEventList(&eventList, vars.EventTypes, vars.ForResource)
+		FilterEventList(cmd, &eventList, vars.EventTypes, vars.ForResource)
 		SortEventList(&eventList)
-		PrintEventList(&eventList, vars.MustGatherRootPath, vars.OutputStringVar, vars.Namespace, vars.AllNamespaceBoolVar)
+		PrintEventList(cmd, &eventList, vars.MustGatherRootPath, vars.OutputStringVar, vars.Namespace, vars.AllNamespaceBoolVar)
 	},
 }
 
@@ -70,15 +71,13 @@ func GetEventList(context string, selectedNs string, allNamespaces bool) (eventL
 	nsFolder := context + "/namespaces/"
 	var namespaces []string
 	if allNamespaces {
-		fileObj, err := os.Open(nsFolder)
+		files, err := vfs.CurrentFS.ReadDir(nsFolder)
 		if err != nil {
 			klog.ErrorS(err, "Unable to read "+nsFolder)
 			os.Exit(1)
 		}
-		namespaces, err = fileObj.Readdirnames(0)
-		if err != nil {
-			klog.ErrorS(err, "Unable to list directories in "+nsFolder)
-			os.Exit(1)
+		for _, f := range files {
+			namespaces = append(namespaces, f.Name())
 		}
 	} else {
 		namespaces = append(namespaces, selectedNs)
@@ -86,9 +85,15 @@ func GetEventList(context string, selectedNs string, allNamespaces bool) (eventL
 
 	for _, namespace := range namespaces {
 		eventsPath := nsFolder + namespace + eventsLocation
-		eventsFile, err := os.ReadFile(eventsPath)
+		_, err := vfs.CurrentFS.Stat(eventsPath)
 		if err != nil {
-			klog.V(5).ErrorS(err, "Unable to read events.yaml")
+			klog.V(5).ErrorS(err, "No events found in "+eventsPath)
+			continue
+		}
+
+		eventsFile, err := vfs.CurrentFS.ReadFile(eventsPath)
+		if err != nil {
+			klog.V(3).ErrorS(err, "Unable to read events.yaml")
 			continue
 		}
 		var nsEvents corev1.EventList
@@ -105,7 +110,7 @@ func GetEventList(context string, selectedNs string, allNamespaces bool) (eventL
 	return eventList
 }
 
-func FilterEventList(eventList *corev1.EventList, types []string, forResource string) {
+func FilterEventList(cmd *cobra.Command, eventList *corev1.EventList, types []string, forResource string) {
 	if len(types) > 0 {
 		var filteredType []corev1.Event
 		for _, event := range eventList.Items {
@@ -122,7 +127,7 @@ func FilterEventList(eventList *corev1.EventList, types []string, forResource st
 		splitStr := strings.Split(forResource, "/")
 		inputResource, resourceName := splitStr[0], splitStr[1]
 		inputResource = strings.ToLower(inputResource)
-		_, resourceGroup, resourceKind, _, err := get.KindGroupNamespaced(inputResource)
+		_, resourceGroup, resourceKind, _, err := get.KindGroupNamespaced(cmd, inputResource)
 		if err != nil {
 			klog.V(3).ErrorS(err, "Couldn't get --for resource")
 		}
@@ -149,12 +154,12 @@ func SortEventList(eventList *corev1.EventList) {
 	})
 }
 
-func PrintEventList(eventList *corev1.EventList, context string, output string, selectedNs string, allNamespaces bool) {
+func PrintEventList(cmd *cobra.Command, eventList *corev1.EventList, context string, output string, selectedNs string, allNamespaces bool) {
 	if len(eventList.Items) == 0 {
 		if allNamespaces {
-			fmt.Printf("No events found.\n")
+			fmt.Fprintf(cmd.OutOrStdout(), "No events found.\n")
 		} else {
-			fmt.Printf("No events found in %s namespace.\n", selectedNs)
+			fmt.Fprintf(cmd.OutOrStdout(), "No events found in %s namespace.\n", selectedNs)
 		}
 	}
 
@@ -162,20 +167,20 @@ func PrintEventList(eventList *corev1.EventList, context string, output string, 
 	if output == "name" {
 		cliPrinter := cliprint.NamePrinter{ShortOutput: true}
 		for _, event := range eventList.Items {
-			err := cliPrinter.PrintObj(&event, os.Stdout)
+			err := cliPrinter.PrintObj(&event, cmd.OutOrStdout())
 			if err != nil {
 				klog.V(3).ErrorS(err, "Error when outputting names of events")
 			}
 		}
 	} else if output == "yaml" {
 		cliPrinter := cliprint.YAMLPrinter{}
-		err := cliPrinter.PrintObj(eventList, os.Stdout)
+		err := cliPrinter.PrintObj(eventList, cmd.OutOrStdout())
 		if err != nil {
 			klog.V(3).ErrorS(err, "Error when outputting YAML of events")
 		}
 	} else if output == "json" {
 		cliPrinter := cliprint.JSONPrinter{}
-		err := cliPrinter.PrintObj(eventList, os.Stdout)
+		err := cliPrinter.PrintObj(eventList, cmd.OutOrStdout())
 		if err != nil {
 			klog.V(3).ErrorS(err, "Error when outputting JSON of events")
 		}
@@ -204,7 +209,7 @@ func PrintEventList(eventList *corev1.EventList, context string, output string, 
 		}
 
 		cliPrinter = cliprint.NewTablePrinter(cliprint.PrintOptions{})
-		err = cliPrinter.PrintObj(table, os.Stdout)
+		err = cliPrinter.PrintObj(table, cmd.OutOrStdout())
 		if err != nil {
 			klog.V(3).ErrorS(err, "Error when outputting table of events")
 		}

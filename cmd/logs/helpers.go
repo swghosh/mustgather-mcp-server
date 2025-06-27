@@ -7,6 +7,8 @@ import (
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -65,7 +67,7 @@ func parseCRILog(log []byte, infoLevel bool, warningLevel bool, errorLevel bool)
 	return "", nil
 }
 
-func FilterCatLogs(filePath string, logLevels []string) {
+func FilterCatLogs(cmd *cobra.Command, filePath string, logLevels []string) {
 	var infoLevel, warningLevel, errorLevel bool
 	for _, i := range logLevels {
 		if i == "info" {
@@ -79,12 +81,12 @@ func FilterCatLogs(filePath string, logLevels []string) {
 		}
 	}
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		fmt.Fprintln(os.Stderr, "error: file "+filePath+" does not exist")
+		fmt.Fprintln(cmd.ErrOrStderr(), "error: file "+filePath+" does not exist")
 		os.Exit(1)
 	}
 	file, err := os.Open(filePath)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "error: can't open file "+filePath)
+		fmt.Fprintln(cmd.ErrOrStderr(), "error: can't open file "+filePath)
 		os.Exit(1)
 	}
 	defer file.Close()
@@ -94,11 +96,11 @@ func FilterCatLogs(filePath string, logLevels []string) {
 	for scanner.Scan() {
 		log, err := parseCRILog(scanner.Bytes(), infoLevel, warningLevel, errorLevel)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
+			fmt.Fprintln(cmd.ErrOrStderr(), err)
 			os.Exit(1)
 		}
 		if log != "" {
-			fmt.Println(log)
+			fmt.Fprintln(cmd.OutOrStdout(), log)
 		}
 
 	}

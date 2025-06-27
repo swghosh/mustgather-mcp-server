@@ -23,21 +23,20 @@ import (
 
 	"github.com/gmeghnag/omc/cmd"
 	"github.com/gmeghnag/omc/cmd/certs"
-	"github.com/gmeghnag/omc/cmd/config"
 	"github.com/gmeghnag/omc/cmd/describe"
 	"github.com/gmeghnag/omc/cmd/etcd"
 	"github.com/gmeghnag/omc/cmd/events"
 	"github.com/gmeghnag/omc/cmd/get"
 	"github.com/gmeghnag/omc/cmd/haproxy"
 	"github.com/gmeghnag/omc/cmd/helpers"
+	"github.com/gmeghnag/omc/cmd/insights"
 	"github.com/gmeghnag/omc/cmd/logs"
 	"github.com/gmeghnag/omc/cmd/machineconfig"
 	nodelogs "github.com/gmeghnag/omc/cmd/node-logs"
 	"github.com/gmeghnag/omc/cmd/ovn"
-	"github.com/gmeghnag/omc/cmd/insights"
 	"github.com/gmeghnag/omc/cmd/prometheus"
-	"github.com/gmeghnag/omc/cmd/upgrade"
 	"github.com/gmeghnag/omc/cmd/use"
+	"github.com/gmeghnag/omc/pkg/vfs"
 	"github.com/gmeghnag/omc/types"
 	"github.com/gmeghnag/omc/vars"
 
@@ -51,10 +50,13 @@ import (
 
 // RootCmd represents the base command when called without any subcommands
 var RootCmd = &cobra.Command{ // FLOW 4
-	Use: "omc",
+	Use: "",
 	Run: func(cmd *cobra.Command, args []string) {
 		cmd.Help()
 		os.Exit(0)
+	},
+	CompletionOptions: cobra.CompletionOptions{
+		DisableDefaultCmd: true,
 	},
 }
 
@@ -91,14 +93,14 @@ func init() {
 	RootCmd.AddCommand(
 		haproxy.Haproxy,
 		certs.Certs,
-		cmd.VersionCmd,
-		cmd.ProjectCmd,
+		// cmd.VersionCmd,
+		// cmd.ProjectCmd,
 		cmd.ProjectsCmd,
 		use.UseCmd,
-		cmd.MustGather,
-		cmd.IngestCRDS,
+		// cmd.MustGather,
+		// cmd.IngestCRDS,
 		nodelogs.NodeLogs,
-		config.ConfigCmd,
+		// config.ConfigCmd,
 		get.GetCmd,
 		describe.DescribeCmd,
 		etcd.Etcd,
@@ -107,7 +109,7 @@ func init() {
 		ovn.OvnCmd,
 		prometheus.PrometheusCmd,
 		events.EventsCmd,
-		upgrade.Upgrade,
+		// upgrade.Upgrade,
 		insights.InsightsCmd,
 	)
 	loadOmcConfigs()
@@ -125,7 +127,7 @@ func initConfig() {
 				cobra.CheckErr(err)
 			}
 		}
-		helpers.CreateConfigFile(home + "/.omc/omc.json")
+		helpers.CreateConfigFile(RootCmd, home+"/.omc/omc.json")
 	}
 	if _, err := os.Stat(home + "/.omc/customresourcedefinitions"); errors.Is(err, os.ErrNotExist) {
 		err := os.Mkdir(home+"/.omc/customresourcedefinitions", os.ModePerm)
@@ -146,37 +148,49 @@ func initConfig() {
 		contexts := omcConfigJson.Contexts
 		for _, context := range contexts {
 			if context.Current == "*" {
+				klog.V(5).Infof("using gather from: %s\n", context.Path)
+
 				vars.MustGatherRootPath = context.Path
+
+				if use.IsGCSPath(vars.MustGatherRootPath) {
+					vfs.CurrentFS, err = vfs.NewGcsFS(vars.MustGatherRootPath)
+					if err != nil {
+						fmt.Fprintln(RootCmd.ErrOrStderr(), err)
+						os.Exit(1)
+					}
+				}
+				// default still uses vfs.OS as LocalFS
+
 				if vars.Namespace == "" {
 					vars.Namespace = context.Project
 				}
 				break
 			}
 		}
-		if vars.MustGatherRootPath != "" {
-			exist, _ := helpers.Exists(vars.MustGatherRootPath)
-			if !exist {
-				files, err := os.ReadDir(vars.MustGatherRootPath)
-				if err != nil {
-					fmt.Println(err)
-					cmd.DeleteContext(vars.MustGatherRootPath, viper.ConfigFileUsed(), "")
-					fmt.Println("Cleaning", viper.ConfigFileUsed())
-				} else {
-					baseDir := ""
-					for _, f := range files {
-						if f.IsDir() {
-							baseDir = f.Name()
-							vars.MustGatherRootPath = vars.MustGatherRootPath + "/" + baseDir
-							break
-						}
-					}
-					if baseDir == "" && !helpers.StringInSlice("use", os.Args) {
-						fmt.Fprintln(os.Stderr, "wrong must-gather file composition for", vars.MustGatherRootPath)
-						os.Exit(1)
-					}
-				}
-			}
-		}
+		// if vars.MustGatherRootPath != "" {
+		// 	exist, _ := helpers.Exists(vars.MustGatherRootPath)
+		// 	if !exist {
+		// 		files, err := os.ReadDir(vars.MustGatherRootPath)
+		// 		if err != nil {
+		// 			fmt.Println(err)
+		// 			cmd.DeleteContext(vars.MustGatherRootPath, viper.ConfigFileUsed(), "")
+		// 			fmt.Println("Cleaning", viper.ConfigFileUsed())
+		// 		} else {
+		// 			baseDir := ""
+		// 			for _, f := range files {
+		// 				if f.IsDir() {
+		// 					baseDir = f.Name()
+		// 					vars.MustGatherRootPath = vars.MustGatherRootPath + "/" + baseDir
+		// 					break
+		// 				}
+		// 			}
+		// 			if baseDir == "" && !helpers.StringInSlice("use", os.Args) {
+		// 				fmt.Fprintln(os.Stderr, "wrong must-gather file composition for", vars.MustGatherRootPath)
+		// 				os.Exit(1)
+		// 			}
+		// 		}
+		// 	}
+		// }
 	}
 
 }

@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/fs"
 	"io/ioutil"
 	"log"
@@ -15,10 +14,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gmeghnag/omc/pkg/vfs"
 	"github.com/gmeghnag/omc/types"
 	"github.com/gmeghnag/omc/vars"
 
 	"github.com/olekukonko/tablewriter"
+	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/jsonpath"
@@ -49,8 +50,8 @@ func RandString(length int) string {
 	return StringWithCharset(length, charset)
 }
 
-func PrintTable(headers []string, data [][]string) {
-	table := tablewriter.NewWriter(os.Stdout)
+func PrintTable(cmd *cobra.Command, headers []string, data [][]string) {
+	table := tablewriter.NewWriter(cmd.OutOrStdout())
 	table.SetHeader(headers)
 	table.SetAutoWrapText(false)
 	table.SetAutoFormatHeaders(true)
@@ -102,26 +103,26 @@ func FormatDiffTime(diff time.Duration) string {
 	return strconv.Itoa(int(diff.Seconds())) + "s"
 }
 
-func ExecuteJsonPath(data interface{}, jsonPathTemplate string) {
+func ExecuteJsonPath(cmd *cobra.Command, data interface{}, jsonPathTemplate string) {
 	buf := new(bytes.Buffer)
 	jPath := jsonpath.New("out")
 	jPath.AllowMissingKeys(false)
 	jPath.EnableJSONOutput(false)
 	err := jPath.Parse(jsonPathTemplate)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "error: error parsing jsonpath "+jsonPathTemplate+", "+err.Error())
+		fmt.Fprintln(cmd.ErrOrStderr(), "error: error parsing jsonpath "+jsonPathTemplate+", "+err.Error())
 		os.Exit(1)
 	}
 	jPath.Execute(buf, data)
-	fmt.Print(buf)
+	fmt.Fprint(cmd.OutOrStdout(), buf)
 }
 
-func CreateConfigFile(cfgFilePath string) {
+func CreateConfigFile(cmd *cobra.Command, cfgFilePath string) {
 	config := types.Config{}
 	file, _ := json.MarshalIndent(config, "", " ")
 	err := ioutil.WriteFile(cfgFilePath, file, 0644)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(cmd.ErrOrStderr(), err)
 		os.Exit(1)
 	}
 }
@@ -177,11 +178,11 @@ func ExtractLabel(_labels map[string]string, _label string) string {
 // doing this because of a bug who append three characthers to the first node yaml file
 func ReadYaml(YamlPath string) []byte {
 	var __file []byte
-	_file, err := os.Open(YamlPath)
+	fileBytes, err := vfs.CurrentFS.ReadFile(YamlPath)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer _file.Close()
+	_file := bytes.NewReader(fileBytes)
 
 	scanner := bufio.NewScanner(_file)
 	for scanner.Scan() {
@@ -198,11 +199,11 @@ func ReadYaml(YamlPath string) []byte {
 
 func GetAge(resourcefilePath string, resourceCreationTimeStamp v1.Time) string {
 	var ResourceFile fs.FileInfo
-	ResourceFile, err := os.Stat(resourcefilePath + "/timestamp")
+	ResourceFile, err := vfs.CurrentFS.Stat(resourcefilePath + "/timestamp")
 	if err != nil {
-		ResourceFile, err = os.Stat(resourcefilePath + "/namespaces")
+		ResourceFile, err = vfs.CurrentFS.Stat(resourcefilePath + "/namespaces")
 		if err != nil {
-			ResourceFile, err = os.Stat(resourcefilePath + "/cluster-scoped-resources")
+			ResourceFile, err = vfs.CurrentFS.Stat(resourcefilePath + "/cluster-scoped-resources")
 			if err != nil {
 				return "Unknown"
 			}
@@ -216,7 +217,7 @@ func GetAge(resourcefilePath string, resourceCreationTimeStamp v1.Time) string {
 }
 
 func IsDirectory(path string) (bool, error) {
-	fileInfo, err := os.Stat(path)
+	fileInfo, err := vfs.CurrentFS.Stat(path)
 	if err != nil {
 		return false, err
 	}
@@ -225,7 +226,7 @@ func IsDirectory(path string) (bool, error) {
 }
 
 func Exists(path string) (bool, error) {
-	_, err := os.Stat(path)
+	_, err := vfs.CurrentFS.Stat(path)
 	if err == nil {
 		return true, nil
 	}
@@ -235,7 +236,7 @@ func Exists(path string) (bool, error) {
 	return false, err
 }
 
-func PrintOutput(resource interface{}, columns int16, outputFlag string, resourceName string, allNamespacesFlag bool, showLabels bool, _headers []string, data [][]string, jsonPathTemplate string) bool {
+func PrintOutput(cmd *cobra.Command, resource interface{}, columns int16, outputFlag string, resourceName string, allNamespacesFlag bool, showLabels bool, _headers []string, data [][]string, jsonPathTemplate string) bool {
 	var headers []string
 	if outputFlag == "" {
 		if allNamespacesFlag == true {
@@ -246,7 +247,7 @@ func PrintOutput(resource interface{}, columns int16, outputFlag string, resourc
 		if showLabels {
 			headers = append(headers, "labels")
 		}
-		PrintTable(headers, data)
+		PrintTable(cmd, headers, data)
 		return false
 	}
 	if outputFlag == "wide" {
@@ -258,7 +259,7 @@ func PrintOutput(resource interface{}, columns int16, outputFlag string, resourc
 		if showLabels {
 			headers = append(headers, "labels")
 		}
-		PrintTable(headers, data)
+		PrintTable(cmd, headers, data)
 		return false
 	}
 
@@ -266,49 +267,37 @@ func PrintOutput(resource interface{}, columns int16, outputFlag string, resourc
 
 	if outputFlag == "yaml" {
 		y, _ := yaml.Marshal(resource)
-		fmt.Println(string(y))
+		fmt.Fprintln(cmd.OutOrStdout(), string(y))
 	}
 	if outputFlag == "json" {
 		j, _ := json.MarshalIndent(resource, "", "  ")
-		fmt.Println(string(j))
+		fmt.Fprintln(cmd.OutOrStdout(), string(j))
 	}
 	if strings.HasPrefix(outputFlag, "jsonpath=") {
-		ExecuteJsonPath(resource, jsonPathTemplate)
+		ExecuteJsonPath(cmd, resource, jsonPathTemplate)
 	}
 	return false
 }
 
-func Cat(filePath string) {
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		fmt.Fprintln(os.Stderr, "error: could not find file "+filePath)
+func Cat(cmd *cobra.Command, filePath string) {
+	if _, err := vfs.CurrentFS.Stat(filePath); os.IsNotExist(err) {
+		fmt.Fprintln(cmd.ErrOrStderr(), "error: could not find file "+filePath)
 		os.Exit(1)
 	}
-	file, err := os.Open(filePath)
+	fileBytes, err := vfs.CurrentFS.ReadFile(filePath)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "error: could not open file "+filePath)
+		fmt.Fprintln(cmd.ErrOrStderr(), "error: could not read file "+filePath)
 		os.Exit(1)
 	}
-	defer func() {
-		if err = file.Close(); err != nil {
-			fmt.Fprintln(os.Stderr, "error: could not close file "+filePath)
-			os.Exit(1)
-		}
-	}()
-
-	fileBytes, err := io.ReadAll(file)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "error: could not read file "+filePath)
-		os.Exit(1)
-	}
-	fmt.Print(string(fileBytes[:]))
+	fmt.Fprint(cmd.OutOrStdout(), string(fileBytes[:]))
 }
 
-func GetJsonTemplate(outputStringVar string) string {
+func GetJsonTemplate(cmd *cobra.Command, outputStringVar string) string {
 	jsonPathTemplate := ""
 	if strings.HasPrefix(outputStringVar, "jsonpath=") {
 		s := outputStringVar[9:]
 		if len(s) < 1 {
-			fmt.Fprintln(os.Stderr, "error: template format specified but no template given")
+			fmt.Fprintln(cmd.ErrOrStderr(), "error: template format specified but no template given")
 			os.Exit(1)
 		}
 		jsonPathTemplate = s
@@ -418,7 +407,7 @@ func TranslateTimestamp(timestamp metav1.Time) string {
 	if timestamp.IsZero() {
 		return "<unknown>"
 	}
-	ResourceFile, _ := os.Stat(vars.MustGatherRootPath + "/namespaces")
+	ResourceFile, _ := vfs.CurrentFS.Stat(vfs.CurrentFS.Join(vars.MustGatherRootPath, "namespaces"))
 	t2 := ResourceFile.ModTime()
 	return ShortHumanDuration(t2.Sub(timestamp.Time))
 }
@@ -426,7 +415,8 @@ func ShortHumanDuration(d time.Duration) string {
 	// Allow deviation no more than 2 seconds(excluded) to tolerate machine time
 	// inconsistence, it can be considered as almost now.
 	if seconds := int(d.Seconds()); seconds < -1 {
-		return fmt.Sprintf("<invalid>")
+		// TODO: fix age showing up as weird
+		return fmt.Sprintf("")
 	} else if seconds < 0 {
 		return fmt.Sprintf("0s")
 	} else if seconds < 60 {
@@ -441,7 +431,21 @@ func ShortHumanDuration(d time.Duration) string {
 	return fmt.Sprintf("%dy", int(d.Hours()/24/365))
 }
 
-func GetFromJsonPath(data interface{}, jsonPathTemplate string) string {
+func GetFromJsonPath(cmd *cobra.Command, data interface{}, jsonPathTemplate string) string {
+	buf := new(bytes.Buffer)
+	jPath := jsonpath.New("out")
+	jPath.AllowMissingKeys(false)
+	jPath.EnableJSONOutput(false)
+	err := jPath.Parse(jsonPathTemplate)
+	if err != nil {
+		fmt.Fprintln(cmd.ErrOrStderr(), "error: error parsing jsonpath "+jsonPathTemplate+", "+err.Error())
+		os.Exit(1)
+	}
+	jPath.Execute(buf, data)
+	return buf.String()
+}
+
+func GetFromJsonPathWithoutCmd(data interface{}, jsonPathTemplate string) string {
 	buf := new(bytes.Buffer)
 	jPath := jsonpath.New("out")
 	jPath.AllowMissingKeys(false)

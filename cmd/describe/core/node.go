@@ -17,10 +17,10 @@ package core
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 
 	"github.com/gmeghnag/omc/cmd/helpers"
+	"github.com/gmeghnag/omc/pkg/vfs"
 	"github.com/gmeghnag/omc/types"
 	"github.com/gmeghnag/omc/vars"
 
@@ -31,15 +31,15 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-func describeNode(currentContextPath string, namespace string, args []string) {
-	resourceDir := currentContextPath + "/cluster-scoped-resources/core/nodes"
-	resourcesFiles, _ := ioutil.ReadDir(resourceDir)
+func describeNode(cmd *cobra.Command, currentContextPath string, namespace string, args []string) {
+	resourceDir := vfs.CurrentFS.Join(currentContextPath, "cluster-scoped-resources", "core", "nodes")
+	resourcesFiles, _ := vfs.CurrentFS.ReadDir(resourceDir)
 	for _, f := range resourcesFiles {
-		resourceYamlPath := resourceDir + "/" + f.Name()
-		_file, _ := ioutil.ReadFile(resourceYamlPath)
+		resourceYamlPath := vfs.CurrentFS.Join(resourceDir, f.Name())
+		_file, _ := vfs.CurrentFS.ReadFile(resourceYamlPath)
 		_Node := corev1.Node{}
 		if err := yaml.Unmarshal(_file, &_Node); err != nil {
-			fmt.Fprintln(os.Stderr, "Error when trying to unmarshal file: "+resourceYamlPath)
+			fmt.Fprintln(cmd.ErrOrStderr(), "Error when trying to unmarshal file: "+resourceYamlPath)
 			os.Exit(1)
 		}
 		if len(args) > 0 && helpers.StringInSlice(_Node.GetName(), args) {
@@ -47,7 +47,7 @@ func describeNode(currentContextPath string, namespace string, args []string) {
 			c := &types.DescribeClient{Namespace: namespace, Interface: fake}
 			d := desc.NodeDescriber{c}
 			out, _ := d.Describe(namespace, _Node.GetName(), desc.DescriberSettings{ShowEvents: false})
-			fmt.Printf(out)
+			fmt.Fprint(cmd.OutOrStdout(), out)
 		}
 	}
 }
@@ -57,6 +57,6 @@ var Node = &cobra.Command{
 	Aliases: []string{"nodes"},
 	Hidden:  true,
 	Run: func(cmd *cobra.Command, args []string) {
-		describeNode(vars.MustGatherRootPath, vars.Namespace, args)
+		describeNode(cmd, vars.MustGatherRootPath, vars.Namespace, args)
 	},
 }

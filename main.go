@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,10 +16,28 @@ limitations under the License.
 package main
 
 import (
+	"os"
+
 	"github.com/gmeghnag/omc/root"
+	"github.com/njayp/ophis/bridge"
+	"github.com/njayp/ophis/mcp"
 )
 
 func main() {
-	//fmt.Println("inside main") // FLOW 3
-	root.RootCmd.Execute()
+	rootCmd := root.RootCmd
+
+	factory := &CommandFactory{
+		rootCmd: root.RootCmd,
+	}
+
+	config := &bridge.Config{
+		AppName:    "openshit-must-gather",
+		AppVersion: "0.0.1",
+		LogLevel:   "info",
+	}
+	rootCmd.AddCommand(mcp.Command(factory, config))
+
+	if err := rootCmd.Execute(); err != nil {
+		os.Exit(1)
+	}
 }

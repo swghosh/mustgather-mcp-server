@@ -18,11 +18,11 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 
 	"github.com/gmeghnag/omc/cmd/helpers"
+	"github.com/gmeghnag/omc/pkg/vfs"
 	"github.com/gmeghnag/omc/types"
 	"github.com/gmeghnag/omc/vars"
 
@@ -31,11 +31,11 @@ import (
 
 func projectsDefault(omcConfigFile string, projDefault string) {
 	var namespaces []string
-	_namespaces, _ := ioutil.ReadDir(vars.MustGatherRootPath + "/namespaces/")
+	_namespaces, _ := vfs.CurrentFS.ReadDir(vfs.CurrentFS.Join(vars.MustGatherRootPath, "namespaces"))
 	for _, f := range _namespaces {
 		namespaces = append(namespaces, f.Name())
 	}
-	file, _ := ioutil.ReadFile(omcConfigFile)
+	file, _ := os.ReadFile(omcConfigFile)
 	omcConfigJson := types.Config{}
 	_ = json.Unmarshal([]byte(file), &omcConfigJson)
 
@@ -67,7 +67,7 @@ func projectsDefault(omcConfigFile string, projDefault string) {
 	if err != nil {
 		log.Fatal("Json Marshal failed")
 	}
-	_ = ioutil.WriteFile(omcConfigFile, file, 0644)
+	_ = os.WriteFile(omcConfigFile, file, 0644)
 
 }
 
@@ -76,22 +76,22 @@ var ProjectsCmd = &cobra.Command{
 	Short: "List all available projects",
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) != 0 {
-			fmt.Fprintln(os.Stderr, "Expect zero arguemnt, found: ", len(args))
+			fmt.Fprintln(cmd.ErrOrStderr(), "Expect zero arguemnt, found: ", len(args))
 			os.Exit(1)
 		}
 		if len(args) == 0 {
-			fmt.Println("You have access to the following projects and can switch between them with ' project <projectname>':")
-			fmt.Println("")
-			_namespaces, _ := ioutil.ReadDir(vars.MustGatherRootPath + "/namespaces/")
+			fmt.Fprintln(cmd.OutOrStdout(), "You have access to the following projects and can switch between them with ' project <projectname>':")
+			fmt.Fprintln(cmd.OutOrStdout(), "")
+			_namespaces, _ := vfs.CurrentFS.ReadDir(vfs.CurrentFS.Join(vars.MustGatherRootPath, "namespaces"))
 			for _, f := range _namespaces {
 				if f.Name() == vars.Namespace {
-					fmt.Println("  * ", f.Name())
+					fmt.Fprintln(cmd.OutOrStdout(), "  * ", f.Name())
 				} else {
-					fmt.Println("    ", f.Name())
+					fmt.Fprintln(cmd.OutOrStdout(), "    ", f.Name())
 				}
 			}
-			fmt.Println("")
-			fmt.Println("Using project \"" + vars.Namespace + "\" on must-gather \"" + vars.MustGatherRootPath + "\".")
+			fmt.Fprintln(cmd.OutOrStdout(), "")
+			fmt.Fprintln(cmd.OutOrStdout(), "Using project \""+vars.Namespace+"\" on must-gather \""+vars.MustGatherRootPath+"\".")
 		}
 	},
 }
