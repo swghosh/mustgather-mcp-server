@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	ign3types "github.com/coreos/ignition/v2/config/v3_2/types"
+	"github.com/gmeghnag/omc/pkg/vfs"
 	"github.com/gmeghnag/omc/vars"
 	mcfgv1 "github.com/openshift/machine-config-operator/pkg/apis/machineconfiguration.openshift.io/v1"
 	ctrlcommon "github.com/openshift/machine-config-operator/pkg/controller/common"
@@ -112,8 +113,8 @@ var Extract = &cobra.Command{
 			fmt.Fprintln(os.Stderr, "error: one argument expected, found ", strconv.Itoa(len(args)))
 			os.Exit(1)
 		}
-		machineconfigYamlPath := vars.MustGatherRootPath + "/cluster-scoped-resources/machineconfiguration.openshift.io/machineconfigs/" + args[0] + ".yaml"
-		_file, err := os.ReadFile(machineconfigYamlPath)
+		machineconfigYamlPath := vfs.CurrentFS.Join(vars.MustGatherRootPath, "cluster-scoped-resources", "machineconfiguration.openshift.io", "machineconfigs", args[0]+".yaml")
+		_file, err := vfs.CurrentFS.ReadFile(machineconfigYamlPath)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 		}

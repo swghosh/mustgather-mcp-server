@@ -3,11 +3,11 @@ package get
 import (
 	"fmt"
 	"io/fs"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/gmeghnag/omc/pkg/vfs"
 	"github.com/gmeghnag/omc/vars"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/util/validation"
@@ -146,15 +146,15 @@ func KindGroupNamespaced(alias string) (string, string, string, bool, error) {
 }
 
 func kindGroupNamespacedFromCrds(alias string) (string, string, string, bool, error) {
-	crdsPath := vars.MustGatherRootPath + "/cluster-scoped-resources/apiextensions.k8s.io/customresourcedefinitions/"
+	crdsPath := vfs.CurrentFS.Join(vars.MustGatherRootPath, "cluster-scoped-resources", "apiextensions.k8s.io", "customresourcedefinitions")
 	if ok, _ := Exists(crdsPath); ok {
 		crds, rErr := ReadDirForResources(crdsPath)
 		if rErr != nil {
 			fmt.Fprintln(os.Stderr, rErr)
 		}
 		for _, f := range crds {
-			crdYamlPath := crdsPath + f.Name()
-			crdByte, _ := ioutil.ReadFile(crdYamlPath)
+			crdYamlPath := vfs.CurrentFS.Join(crdsPath, f.Name())
+			crdByte, _ := vfs.CurrentFS.ReadFile(crdYamlPath)
 			_crd := &apiextensionsv1.CustomResourceDefinition{}
 			if err := yaml.Unmarshal([]byte(crdByte), &_crd); err != nil {
 				continue
@@ -194,15 +194,15 @@ func kindGroupNamespacedFromCrds(alias string) (string, string, string, bool, er
 		klog.V(4).Info("INFO ", fmt.Sprintf("No customResource found with name or alias \"%s\" in path: \"%s\".", alias, crdsPath))
 	}
 	home, _ := os.UserHomeDir()
-	omcCrdsPath := home + "/.omc/customresourcedefinitions/"
+	omcCrdsPath := vfs.CurrentFS.Join(home, ".omc", "customresourcedefinitions")
 	if ok, _ := Exists(omcCrdsPath); ok {
 		crds, rErr := ReadDirForResources(omcCrdsPath)
 		if rErr != nil {
 			fmt.Fprintln(os.Stderr, rErr)
 		}
 		for _, f := range crds {
-			crdYamlPath := omcCrdsPath + f.Name()
-			crdByte, _ := ioutil.ReadFile(crdYamlPath)
+			crdYamlPath := vfs.CurrentFS.Join(omcCrdsPath, f.Name())
+			crdByte, _ := vfs.CurrentFS.ReadFile(crdYamlPath)
 			_crd := &apiextensionsv1.CustomResourceDefinition{}
 			if err := yaml.Unmarshal([]byte(crdByte), &_crd); err != nil {
 				continue
@@ -253,7 +253,7 @@ func StringInSlice(a string, list []string) bool {
 }
 
 func Exists(path string) (bool, error) {
-	_, err := os.Stat(path)
+	_, err := vfs.CurrentFS.Stat(path)
 	if err == nil {
 		return true, nil
 	}
@@ -263,15 +263,16 @@ func Exists(path string) (bool, error) {
 	return false, err
 }
 
-func ReadDirForResources(path string) ([]os.DirEntry, error) {
+func ReadDirForResources(path string) ([]fs.DirEntry, error) {
 	klog.V(5).Info("INFO ", fmt.Sprintf("opening '%s'\n", path))
-	return readDirForResources(os.DirFS(path))
+	return readDirForResources(path)
 }
 
 // readdir wraps around fs.ReadDir and only return valid resource yaml files
-func readDirForResources(in fs.FS) ([]os.DirEntry, error) {
-	resources := make([]os.DirEntry, 0)
-	files, err := fs.ReadDir(in, ".")
+func readDirForResources(path string) ([]fs.DirEntry, error) {
+	resources := make([]fs.DirEntry, 0)
+	files, err := vfs.CurrentFS.ReadDir(path)
+
 	if err == nil {
 		for _, file := range files {
 			fileName := file.Name()
@@ -280,11 +281,13 @@ func readDirForResources(in fs.FS) ([]os.DirEntry, error) {
 				// only dirs or yaml files are expected as valid resources, e.g.:
 				//  router-default-abcde12345-fgh678 or rendered-worker-abcdef123456.yaml
 				if filepath.Ext(fileName) == ".yaml" || file.IsDir() {
-					fInfo, _ := file.Info()
+					// fInfo, _ := file.Info()
 					// ignore empty files
-					if fInfo.Size() > 0 {
-						resources = append(resources, file)
-					}
+					// if fInfo.Size() > 0 {
+					klog.V(6).Infof("adding file irrespective of size: %s", file.Name())
+
+					resources = append(resources, file)
+					// }
 				}
 			}
 		}

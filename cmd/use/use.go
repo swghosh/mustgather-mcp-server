@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"github.com/gmeghnag/omc/cmd/helpers"
+	"github.com/gmeghnag/omc/pkg/vfs"
 	"github.com/gmeghnag/omc/types"
 	"github.com/gmeghnag/omc/vars"
 
@@ -35,16 +36,14 @@ import (
 
 var singleNamespaceInMustGather bool
 
-func useContext(path string, omcConfigFile string, idFlag string) error {
+func UseContext(path string, omcConfigFile string, idFlag string) error {
 	if path != "" {
 		_path, err := findMustGatherIn(path)
 		if err != nil {
 			return err
 		}
-		l := strings.Split(_path, "/")
-		path = strings.Join(l[0:(len(l)-1)], "/")
-		path = strings.TrimSuffix(path, "/")
-		vars.MustGatherRootPath = path
+		vars.MustGatherRootPath = _path
+		path = _path
 	}
 
 	// read json omcConfigFile
@@ -77,10 +76,12 @@ func useContext(path string, omcConfigFile string, idFlag string) error {
 		} else {
 			ctxId = helpers.RandString(8)
 			var namespaces []string
-			_namespaces, _ := os.ReadDir(path + "/namespaces/")
+
+			_namespaces, _ := vfs.CurrentFS.ReadDir(vfs.CurrentFS.Join(path, "namespaces"))
 			for _, f := range _namespaces {
 				namespaces = append(namespaces, f.Name())
 			}
+
 			if len(namespaces) == 1 {
 				NewContexts = append(NewContexts, types.Context{Id: ctxId, Path: path, Current: "*", Project: namespaces[0]})
 				vars.Namespace = namespaces[0]
@@ -119,7 +120,7 @@ func findMustGatherIn(path string) (string, error) {
 	var retErr error
 	timeStampFound := false
 	resourcesFolderFound := false
-	files, err := os.ReadDir(path)
+	files, err := vfs.CurrentFS.ReadDir(path)
 	if err != nil {
 		return "", err
 	}
@@ -158,24 +159,24 @@ func MustGatherInfo() {
 	} else {
 		fmt.Printf("Project        : %s\n", vars.Namespace)
 	}
-	InfrastrctureFilePathExists, _ := helpers.Exists(vars.MustGatherRootPath + "/cluster-scoped-resources/config.openshift.io/infrastructures.yaml")
-	if InfrastrctureFilePathExists {
-		_file, _ := os.ReadFile(vars.MustGatherRootPath + "/cluster-scoped-resources/config.openshift.io/infrastructures.yaml")
+	InfrastructureFilePathExists, _ := helpers.Exists(vfs.CurrentFS.Join(vars.MustGatherRootPath, "cluster-scoped-resources/config.openshift.io/infrastructures.yaml"))
+	if InfrastructureFilePathExists {
+		_file, _ := vfs.CurrentFS.ReadFile(vfs.CurrentFS.Join(vars.MustGatherRootPath, "cluster-scoped-resources/config.openshift.io/infrastructures.yaml"))
 		infrastructureList := configv1.InfrastructureList{}
 		if err := yaml.Unmarshal([]byte(_file), &infrastructureList); err != nil {
-			fmt.Println("Error when trying to unmarshal file: " + vars.MustGatherRootPath + "/cluster-scoped-resources/config.openshift.io/infrastructures.yaml")
+			fmt.Println("Error when trying to unmarshal file: " + vfs.CurrentFS.Join(vars.MustGatherRootPath, "/cluster-scoped-resources/config.openshift.io/infrastructures.yaml"))
 			os.Exit(1)
 		} else {
 			fmt.Printf("ApiServerURL   : %s\n", infrastructureList.Items[0].Status.APIServerURL)
 			fmt.Printf("Platform       : %s\n", infrastructureList.Items[0].Status.PlatformStatus.Type)
 		}
 	}
-	clusterversionFilePathExists, _ := helpers.Exists(vars.MustGatherRootPath + "/cluster-scoped-resources/config.openshift.io/clusterversions/version.yaml")
+	clusterversionFilePathExists, _ := helpers.Exists(vfs.CurrentFS.Join(vars.MustGatherRootPath, "cluster-scoped-resources/config.openshift.io/clusterversions/version.yaml"))
 	if clusterversionFilePathExists {
-		_file, _ := os.ReadFile(vars.MustGatherRootPath + "/cluster-scoped-resources/config.openshift.io/clusterversions/version.yaml")
+		_file, _ := vfs.CurrentFS.ReadFile(vfs.CurrentFS.Join(vars.MustGatherRootPath, "cluster-scoped-resources/config.openshift.io/clusterversions/version.yaml"))
 		ClusterVersion := configv1.ClusterVersion{}
 		if err := yaml.Unmarshal([]byte(_file), &ClusterVersion); err != nil {
-			fmt.Println("Error when trying to unmarshal file: " + vars.MustGatherRootPath + "/cluster-scoped-resources/config.openshift.io/clusterversions/version.yaml")
+			fmt.Println("Error when trying to unmarshal file: " + vfs.CurrentFS.Join(vars.MustGatherRootPath, "/cluster-scoped-resources/config.openshift.io/clusterversions/version.yaml"))
 			os.Exit(1)
 		} else {
 			clusterversion := ""
@@ -220,8 +221,10 @@ var UseCmd = &cobra.Command{
 		var err error
 		idFlag, _ := cmd.Flags().GetString("id")
 		path := ""
-		fileType := ""
 		isCompressedFile := false
+		fileType := ""
+		fs := vfs.CurrentFS
+
 		if len(args) == 0 && idFlag == "" {
 			MustGatherInfo()
 			os.Exit(0)
@@ -232,12 +235,20 @@ var UseCmd = &cobra.Command{
 		}
 		if len(args) == 1 {
 			path = args[0]
-			if IsRemoteFile(path) {
-				path, err = DownloadFile(path)
+
+			if isCIArtifactPath(path) {
+				path = SanitizeCIArtifactPath(path)
+			}
+
+			vfs.CurrentFS = &vfs.LocalFS{}
+			if IsGCSPath(path) {
+				fs, err = vfs.NewGcsFS(path)
 				if err != nil {
-					fmt.Fprintln(os.Stderr, err)
+					fmt.Fprintln(os.Stderr, "Error creating GCS filesystem: ", err)
 					os.Exit(1)
 				}
+
+				vfs.CurrentFS = fs
 			} else {
 				if strings.HasSuffix(path, "/") {
 					path = strings.TrimRight(path, "/")
@@ -246,14 +257,14 @@ var UseCmd = &cobra.Command{
 					path = strings.TrimRight(path, "\\")
 				}
 				path, _ = filepath.Abs(path)
-			}
 
-			isDir, _ := helpers.IsDirectory(path)
-			if !isDir {
-				isCompressedFile, fileType, _ = IsCompressedFile(path)
-				if !isCompressedFile {
-					fmt.Fprintln(os.Stderr, "Error: "+path+" is not a directory not a compressed file.")
-					os.Exit(1)
+				isDir, _ := helpers.IsDirectory(path)
+				if !isDir {
+					isCompressedFile, fileType, _ = IsCompressedFile(path)
+					if !isCompressedFile {
+						fmt.Fprintln(os.Stderr, "Error: "+path+" is not a directory nor a compressed file.")
+						os.Exit(1)
+					}
 				}
 			}
 		}
@@ -268,7 +279,7 @@ var UseCmd = &cobra.Command{
 			path = rootfile
 		}
 
-		err = useContext(path, viper.ConfigFileUsed(), idFlag)
+		err = UseContext(path, viper.ConfigFileUsed(), idFlag)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)

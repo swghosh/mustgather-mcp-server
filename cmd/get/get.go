@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"sort"
 	"strings"
 
@@ -45,6 +44,7 @@ import (
 	"github.com/gmeghnag/omc/cmd/helpers"
 	"github.com/gmeghnag/omc/pkg/deserializer"
 	"github.com/gmeghnag/omc/pkg/tablegenerator"
+	"github.com/gmeghnag/omc/pkg/vfs"
 	"github.com/gmeghnag/omc/types"
 	"github.com/gmeghnag/omc/vars"
 
@@ -193,34 +193,38 @@ func getNamespacedResources(resourceNamePlural string, resourceGroup string, res
 	if vars.AllNamespaceBoolVar {
 		vars.Namespace = ""
 		vars.ShowNamespace = true
-		_namespaces, _ := ReadDirForResources(vars.MustGatherRootPath + "/namespaces/")
+		_namespaces, _ := ReadDirForResources(vfs.CurrentFS.Join(vars.MustGatherRootPath, "namespaces"))
+
+		klog.V(6).Infof("number of namespaces: %d", len(_namespaces))
+
 		for _, f := range _namespaces {
 			namespaces = append(namespaces, f.Name())
 		}
 	} else {
 		namespaces = append(namespaces, vars.Namespace)
 	}
+
 	for _, namespace := range namespaces {
 		UnstructuredItems := types.UnstructuredList{ApiVersion: "v1", Kind: "List"}
-		resourcesItemsPath := fmt.Sprintf("%s/namespaces/%s/%s/%s.yaml", vars.MustGatherRootPath, namespace, resourceGroup, resourceNamePlural)
-		_file, err := os.ReadFile(resourcesItemsPath)
+		resourcesItemsPath := vfs.CurrentFS.Join(vars.MustGatherRootPath, "namespaces", namespace, resourceGroup, resourceNamePlural+".yaml")
+		_file, err := vfs.CurrentFS.ReadFile(resourcesItemsPath)
 		if err == nil { // able to read <resourceplural>.yaml, which contains list of items, i.e. /namespaces/<NAMESPACE>/core/pods.yaml
 			err := yaml.Unmarshal(_file, &UnstructuredItems)
 			if err != nil { // unable to unmarshal the file, it may be empty or corrupted
 				// We handle this situation by looking for the pod in the pods directory
-				fStat, _ := os.Stat(resourcesItemsPath)
+				fStat, _ := vfs.CurrentFS.Stat(resourcesItemsPath)
 				fSize := fStat.Size()
 				if resourceNamePlural == "pods" && fSize == 0 {
 					// tranverse the pods directory and fill in UnstructuredItems.Items
-					podsDir := fmt.Sprintf("%s/namespaces/%s/pods", vars.MustGatherRootPath, namespace)
+					podsDir := vfs.CurrentFS.Join(vars.MustGatherRootPath, "namespaces", namespace, "pods")
 					pods, rErr := ReadDirForResources(podsDir)
 					if rErr != nil {
 						klog.V(3).ErrorS(err, "Failed to read resources:")
 					}
 					for _, pod := range pods {
 						podName := pod.Name()
-						podPath := fmt.Sprintf("%s/%s/%s.yaml", podsDir, podName, podName)
-						_file, err := os.ReadFile(podPath)
+						podPath := vfs.CurrentFS.Join(podsDir, podName, podName+".yaml")
+						_file, err := vfs.CurrentFS.ReadFile(podPath)
 						if err != nil {
 							fmt.Fprintf(os.Stderr, "error reading %s: %s\n", podPath, err)
 							os.Exit(1)
@@ -250,16 +254,16 @@ func getNamespacedResources(resourceNamePlural string, resourceGroup string, res
 				}
 			}
 		} else { // the resources are customresources so, stored in a single file per resource
-			resourceDir := fmt.Sprintf("%s/namespaces/%s/%s/%s", vars.MustGatherRootPath, namespace, resourceGroup, resourceNamePlural)
-			_, err = os.Stat(resourceDir)
+			resourceDir := vfs.CurrentFS.Join(vars.MustGatherRootPath, "namespaces", namespace, resourceGroup, resourceNamePlural)
+			_, err = vfs.CurrentFS.Stat(resourceDir)
 			if err == nil {
 				resourcesFiles, rErr := ReadDirForResources(resourceDir)
 				if rErr != nil {
 					klog.V(3).ErrorS(err, "Failed to read resources:")
 				}
 				for _, f := range resourcesFiles {
-					resourceYamlPath := resourceDir + "/" + f.Name()
-					_file, _ := os.ReadFile(resourceYamlPath)
+					resourceYamlPath := vfs.CurrentFS.Join(resourceDir, f.Name())
+					_file, _ := vfs.CurrentFS.ReadFile(resourceYamlPath)
 					item := unstructured.Unstructured{}
 					if err := yaml.Unmarshal(_file, &item); err != nil {
 						fmt.Fprintln(os.Stderr, "Error when trying to unmarshal file: "+resourceYamlPath)
@@ -282,8 +286,8 @@ func getNamespacedResources(resourceNamePlural string, resourceGroup string, res
 func getNamespacesResources(resourceNamePlural string, resourceGroup string, resources map[string]struct{}) {
 	if len(resources) > 0 {
 		for namespace := range resources {
-			resourceYamlPath := fmt.Sprintf("%s/namespaces/%s/%s.yaml", vars.MustGatherRootPath, namespace, namespace)
-			_file, err := ioutil.ReadFile(resourceYamlPath)
+			resourceYamlPath := vfs.CurrentFS.Join(vars.MustGatherRootPath, "namespaces", namespace, namespace+".yaml")
+			_file, err := vfs.CurrentFS.ReadFile(resourceYamlPath)
 			if err == nil {
 				item := unstructured.Unstructured{}
 				if err := yaml.Unmarshal(_file, &item); err != nil {
@@ -294,10 +298,10 @@ func getNamespacesResources(resourceNamePlural string, resourceGroup string, res
 			}
 		}
 	} else {
-		_namespaces, _ := ioutil.ReadDir(vars.MustGatherRootPath + "/namespaces/")
+		_namespaces, _ := vfs.CurrentFS.ReadDir(vfs.CurrentFS.Join(vars.MustGatherRootPath, "namespaces"))
 		for _, namespace := range _namespaces {
-			resourceYamlPath := fmt.Sprintf("%s/namespaces/%s/%s.yaml", vars.MustGatherRootPath, namespace.Name(), namespace.Name())
-			_file, err := ioutil.ReadFile(resourceYamlPath)
+			resourceYamlPath := vfs.CurrentFS.Join(vars.MustGatherRootPath, "namespaces", namespace.Name(), namespace.Name()+".yaml")
+			_file, err := vfs.CurrentFS.ReadFile(resourceYamlPath)
 			if err == nil {
 				item := unstructured.Unstructured{}
 				if err := yaml.Unmarshal(_file, &item); err != nil {
@@ -312,17 +316,17 @@ func getNamespacesResources(resourceNamePlural string, resourceGroup string, res
 
 func getClusterScopedResources(resourceNamePlural string, resourceGroup string, resources map[string]struct{}) {
 	UnstructuredItems := types.UnstructuredList{ApiVersion: "v1", Kind: "List"}
-	resourcePath := fmt.Sprintf("%s/cluster-scoped-resources/%s/%s.yaml", vars.MustGatherRootPath, resourceGroup, resourceNamePlural)
-	_file, err := os.ReadFile(resourcePath)
+	resourcePath := vfs.CurrentFS.Join(vars.MustGatherRootPath, "cluster-scoped-resources", resourceGroup, resourceNamePlural+".yaml")
+	_file, err := vfs.CurrentFS.ReadFile(resourcePath)
 	if err != nil {
-		resourceDir := fmt.Sprintf("%s/cluster-scoped-resources/%s/%s", vars.MustGatherRootPath, resourceGroup, resourceNamePlural)
+		resourceDir := vfs.CurrentFS.Join(vars.MustGatherRootPath, "cluster-scoped-resources", resourceGroup, resourceNamePlural)
 		resourcesFiles, rErr := ReadDirForResources(resourceDir)
 		if rErr != nil {
 			klog.V(3).ErrorS(err, "Failed to read resources:")
 		}
 		for _, f := range resourcesFiles {
-			resourceYamlPath := resourceDir + "/" + f.Name()
-			_file, _ := os.ReadFile(resourceYamlPath)
+			resourceYamlPath := vfs.CurrentFS.Join(resourceDir, f.Name())
+			_file, _ := vfs.CurrentFS.ReadFile(resourceYamlPath)
 			item := unstructured.Unstructured{}
 			if err := yaml.Unmarshal(_file, &item); err != nil {
 				fmt.Fprintln(os.Stderr, "Error when trying to unmarshal file: "+resourceYamlPath)
@@ -357,7 +361,6 @@ func getClusterScopedResources(resourceNamePlural string, resourceGroup string, 
 			}
 		}
 	}
-
 }
 
 func handleObject(obj unstructured.Unstructured) error {
@@ -525,8 +528,8 @@ func handleOutput(w io.Writer) {
 }
 
 func getPodNetworkConnectivityChecksResources(resourceNamePlural string, resourceGroup string, resources map[string]struct{}) {
-	resourcesYamlPath := vars.MustGatherRootPath + "/pod_network_connectivity_check/podnetworkconnectivitychecks.yaml"
-	_file, err := ioutil.ReadFile(resourcesYamlPath)
+	resourcesYamlPath := vfs.CurrentFS.Join(vars.MustGatherRootPath, "pod_network_connectivity_check", "podnetworkconnectivitychecks.yaml")
+	_file, err := vfs.CurrentFS.ReadFile(resourcesYamlPath)
 	if err == nil {
 		UnstructuredItems := types.UnstructuredList{ApiVersion: "v1", Kind: "List"}
 		if err := yaml.Unmarshal(_file, &UnstructuredItems); err != nil {
