@@ -23,7 +23,6 @@ import (
 
 	"github.com/gmeghnag/omc/cmd"
 	"github.com/gmeghnag/omc/cmd/certs"
-	"github.com/gmeghnag/omc/cmd/config"
 	"github.com/gmeghnag/omc/cmd/describe"
 	"github.com/gmeghnag/omc/cmd/etcd"
 	"github.com/gmeghnag/omc/cmd/events"
@@ -36,7 +35,6 @@ import (
 	nodelogs "github.com/gmeghnag/omc/cmd/node-logs"
 	"github.com/gmeghnag/omc/cmd/ovn"
 	"github.com/gmeghnag/omc/cmd/prometheus"
-	"github.com/gmeghnag/omc/cmd/upgrade"
 	"github.com/gmeghnag/omc/cmd/use"
 	"github.com/gmeghnag/omc/pkg/vfs"
 	"github.com/gmeghnag/omc/types"
@@ -52,10 +50,13 @@ import (
 
 // RootCmd represents the base command when called without any subcommands
 var RootCmd = &cobra.Command{ // FLOW 4
-	Use: "omc",
+	Use: "",
 	Run: func(cmd *cobra.Command, args []string) {
 		cmd.Help()
 		os.Exit(0)
+	},
+	CompletionOptions: cobra.CompletionOptions{
+		DisableDefaultCmd: true,
 	},
 }
 
@@ -92,14 +93,14 @@ func init() {
 	RootCmd.AddCommand(
 		haproxy.Haproxy,
 		certs.Certs,
-		cmd.VersionCmd,
-		cmd.ProjectCmd,
+		// cmd.VersionCmd,
+		// cmd.ProjectCmd,
 		cmd.ProjectsCmd,
 		use.UseCmd,
-		cmd.MustGather,
-		cmd.IngestCRDS,
+		// cmd.MustGather,
+		// cmd.IngestCRDS,
 		nodelogs.NodeLogs,
-		config.ConfigCmd,
+		// config.ConfigCmd,
 		get.GetCmd,
 		describe.DescribeCmd,
 		etcd.Etcd,
@@ -108,7 +109,7 @@ func init() {
 		ovn.OvnCmd,
 		prometheus.PrometheusCmd,
 		events.EventsCmd,
-		upgrade.Upgrade,
+		// upgrade.Upgrade,
 		insights.InsightsCmd,
 	)
 	loadOmcConfigs()
