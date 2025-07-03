@@ -17,7 +17,7 @@ package main
 
 import (
 	//"github.com/gmeghnag/omc/root"
-	"github.com/shivprakashmuley/omc-mcp-server/mcp/cmd"
+	"github.com/shivprakashmuley/mustgather-mcp-server/mcp/cmd"
 )
 
 func main() {

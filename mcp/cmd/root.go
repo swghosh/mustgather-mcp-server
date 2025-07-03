@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/mark3labs/mcp-go/server"
-	omcServer "github.com/shivprakashmuley/omc-mcp-server/mcp/server"
-	"github.com/shivprakashmuley/omc-mcp-server/mcp/version"
+	omcServer "github.com/shivprakashmuley/mustgather-mcp-server/mcp/server"
+	"github.com/shivprakashmuley/mustgather-mcp-server/mcp/version"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"golang.org/x/net/context"
