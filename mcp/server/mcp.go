@@ -20,7 +20,6 @@ func NewSever() (*Server, error) {
 			server.WithResourceCapabilities(true, true),
 			server.WithPromptCapabilities(true),
 			server.WithToolCapabilities(true),
-			server.WithLogging(),
 		),
 	}
 	s.server.AddTools(slices.Concat(
