@@ -220,7 +220,7 @@ func executeOMCCommand(args []string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), execTimeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "omc", args...)
+	cmd := exec.CommandContext(ctx, "/app/omc", args...)
 	output, err := cmd.CombinedOutput()
 
 	if ctx.Err() == context.DeadlineExceeded {
@@ -247,11 +247,11 @@ func (s *Server) DownloadMustGather(ctx context.Context, mustGatherURL string) (
 	// Check if URL contains inspect.local - if so, download directory contents directly
 	if strings.Contains(mustGatherURL, "inspect.local") {
 		fmt.Printf("Detected inspect.local URL - downloading directory contents directly\n")
-		
+
 		if err := downloadInspectLocal(mustGatherURL, destDir); err != nil {
 			return "", fmt.Errorf("failed to download inspect.local contents: %w", err)
 		}
-		
+
 		fmt.Printf("Successfully downloaded inspect.local contents to: %s\n", destDir)
 	} else {
 		// Standard tar file download and extraction
